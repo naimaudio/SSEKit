@@ -24,14 +24,14 @@ public enum Error: ErrorType {
     case Unknown
 }
 
-public protocol EventSourceConformist {
-    
-    var readyState: ReadyState { get }
-    var configuration: EventSourceConfiguration { get set }
-    unowned var delegate: EventSourceDelegate { get set }
-    
-    init(configuration: EventSourceConfiguration, delegate: EventSourceDelegate)
-}
+//public protocol EventSourceConformist {
+//    
+//    var readyState: ReadyState { get }
+//    var configuration: EventSourceConfiguration { get set }
+//    weak var delegate: EventSourceDelegate { get set }
+//    
+//    init(configuration: EventSourceConfiguration, delegate: EventSourceDelegate)
+//}
 
 public protocol EventSourceConnectable {
     
@@ -39,7 +39,7 @@ public protocol EventSourceConnectable {
     func disconnect()
 }
 
-public class EventSource: NSObject, EventSourceConformist {
+public class EventSource: NSObject {
 
     public var name: String? {
         return self.configuration.name
@@ -47,13 +47,21 @@ public class EventSource: NSObject, EventSourceConformist {
     
     public var readyState: ReadyState = .Closed
     public var configuration: EventSourceConfiguration
-    unowned public var delegate: EventSourceDelegate
+    weak public var delegate: EventSourceDelegate?
     
     public required init(configuration: EventSourceConfiguration, delegate: EventSourceDelegate) {
         
         self.configuration = configuration //copy
         self.delegate = delegate
     }
+	
+	deinit {
+		print("am i destroyed ever?")
+	}
+	
+	public func disconnect() {
+		// don't do anything - virtual?
+	}
 }
 
 public struct Event: CustomDebugStringConvertible {
@@ -144,19 +152,19 @@ public final class PrimaryEventSource: EventSource, EventSourceConnectable {
         }
     }
     
-    public func disconnect() {
+    public override func disconnect() {
         
         guard let t = self.task where t.state != .Canceling else {
             return
         }
         
-        delegate.eventSourceWillDisconnect(self)
+        delegate?.eventSourceWillDisconnect(self)
         
         self.task?.cancel()
         self.task = nil
         self.readyState = .Closed
         
-        delegate.eventSourceDidDisconnect(self)
+        delegate?.eventSourceDidDisconnect(self)
     }
 }
 
@@ -187,14 +195,14 @@ extension PrimaryEventSource: NSURLSessionDataDelegate {
             case 200...299:
                 fallthrough
             case 300...399:
-                self.delegate.eventSourceDidConnect(self)
+                self.delegate?.eventSourceDidConnect(self)
                 self.readyState = .Open
                 break
                 
             case 400...499:
                 fallthrough
             default:
-                self.delegate.eventSource(self, didEncounterError: .SourceNotFound(responce.statusCode))
+                self.delegate?.eventSource(self, didEncounterError: .SourceNotFound(responce.statusCode))
                 disconnect()
                 return
             }
@@ -263,7 +271,7 @@ extension PrimaryEventSource: NSURLSessionDataDelegate {
                     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0)) {
                         
                         if let event = Event(withEventSource: self, identifier: eventId, event: evn, data: eventData?.dataUsingEncoding(NSUTF8StringEncoding)) {
-                            self.delegate.eventSource(self, didReceiveEvent: event)
+                            self.delegate?.eventSource(self, didReceiveEvent: event)
                         }
                     }
                 }
@@ -272,7 +280,7 @@ extension PrimaryEventSource: NSURLSessionDataDelegate {
                     dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0)) {
                         
                         if let event = Event(withEventSource: self, identifier: eventId, event: eventName, data: eventData?.dataUsingEncoding(NSUTF8StringEncoding)) {
-                            self.delegate.eventSource(self, didReceiveEvent: event)
+                            self.delegate?.eventSource(self, didReceiveEvent: event)
                         }
                     }
                 }
@@ -301,14 +309,14 @@ public final class ChildEventSource: EventSource, EventSourceConnectable {
         
         //print("CHILD CONNECTED")
         self.primaryEventSource?.add(child: self)
-        self.delegate.eventSourceDidConnect(self)
+        self.delegate?.eventSourceDidConnect(self)
     }
     
-    public func disconnect() {
+    public override func disconnect() {
         
-        delegate.eventSourceWillDisconnect(self)
+        delegate?.eventSourceWillDisconnect(self)
         self.readyState = .Closed
-        delegate.eventSourceDidDisconnect(self)
+        delegate?.eventSourceDidDisconnect(self)
     }
 }
 
@@ -331,7 +339,7 @@ extension ChildEventSource: EventSourceDelegate {
             dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0)) {
                 
                 if let event = Event(withEventSource: self, identifier: event.identifier, event: event.event, data: event.data) {
-                    self.delegate.eventSource(self, didReceiveEvent: event)
+                    self.delegate?.eventSource(self, didReceiveEvent: event)
                 }
             }
         }
@@ -340,7 +348,7 @@ extension ChildEventSource: EventSourceDelegate {
             dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0)) {
                 
                 if let event = Event(withEventSource: self, identifier: event.identifier, event: event.event, data: event.data) {
-                    self.delegate.eventSource(self, didReceiveEvent: event)
+                    self.delegate?.eventSource(self, didReceiveEvent: event)
                 }
             }
         }
