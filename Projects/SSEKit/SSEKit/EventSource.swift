@@ -128,7 +128,7 @@ public final class PrimaryEventSource: EventSource, EventSourceConnectable {
         
         let sessionConfig = NSURLSessionConfiguration.defaultSessionConfiguration()
         sessionConfig.requestCachePolicy = .ReloadIgnoringLocalCacheData
-        sessionConfig.timeoutIntervalForRequest = NSTimeInterval(INT_MAX)
+        sessionConfig.timeoutIntervalForRequest = NSTimeInterval(5)
         sessionConfig.timeoutIntervalForResource = NSTimeInterval(INT_MAX)
         sessionConfig.HTTPAdditionalHeaders = ["Accept" : "text/event-stream", "Cache-Control" : "no-cache"]
         
