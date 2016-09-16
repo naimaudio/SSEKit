@@ -105,6 +105,8 @@ public final class PrimaryEventSource: EventSource, EventSourceConnectable {
     
     private var task: NSURLSessionDataTask?
     private var children = Set<ChildEventSource>()
+    private var retries = 0
+    private let maxRetries = 3
     
     internal func add(child child: ChildEventSource) {
         
@@ -158,13 +160,19 @@ public final class PrimaryEventSource: EventSource, EventSourceConnectable {
             return
         }
         
-        delegate?.eventSourceWillDisconnect(self)
-        
         self.task?.cancel()
         self.task = nil
         self.readyState = .Closed
-        
-        delegate?.eventSourceDidDisconnect(self)
+
+        if self.retries < self.maxRetries {
+            self.retries++
+            
+            self.connect()
+        } else {
+            delegate?.eventSourceWillDisconnect(self)
+
+            delegate?.eventSourceDidDisconnect(self)
+        }
     }
 }
 
@@ -197,6 +205,7 @@ extension PrimaryEventSource: NSURLSessionDataDelegate {
             case 300...399:
                 self.delegate?.eventSourceDidConnect(self)
                 self.readyState = .Open
+                self.retries = 0
                 break
                 
             case 400...499:
