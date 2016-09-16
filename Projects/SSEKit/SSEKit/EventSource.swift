@@ -172,6 +172,12 @@ public final class PrimaryEventSource: EventSource, EventSourceConnectable {
             delegate?.eventSourceWillDisconnect(self)
 
             delegate?.eventSourceDidDisconnect(self)
+            
+            for child in self.children {
+                child.delegate?.eventSourceWillDisconnect(self)
+                
+                child.delegate?.eventSourceDidDisconnect(self)
+            }
         }
     }
 }
