@@ -56,7 +56,7 @@ public class EventSource: NSObject {
     }
 	
 	deinit {
-		print("am i destroyed ever?")
+		
 	}
 	
 	public func disconnect() {
@@ -165,7 +165,7 @@ public final class PrimaryEventSource: EventSource, EventSourceConnectable {
         self.readyState = .Closed
 
         if self.retries < self.maxRetries {
-            self.retries++
+            self.retries = self.retries + 1
             
             self.connect()
         } else {
