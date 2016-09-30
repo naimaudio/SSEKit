@@ -78,6 +78,7 @@ public struct Event: CustomDebugStringConvertible {
     let identifier: String?
     let event: String?
     let data: NSData?
+	let jsonData: Dictionary<String, AnyObject>?
     
     init?(withEventSource eventSource: EventSource, identifier: String?, event: String?, data: NSData?) {
         
@@ -92,6 +93,13 @@ public struct Event: CustomDebugStringConvertible {
         self.identifier = identifier
         self.event = event
         self.data = data
+		if (data != nil) {
+			let jsonData = try? NSJSONSerialization.JSONObjectWithData(data!, options:[])
+			self.jsonData = jsonData as? Dictionary<String, AnyObject>
+		}
+		else {
+			self.jsonData = nil;
+		}
     }
     
     public var debugDescription: String {

@@ -24,6 +24,7 @@ public extension SSEManager {
             case Identifier
             case Name
             case Data
+			case JSONData
             case Timestamp
         }
     }
@@ -135,7 +136,11 @@ extension SSEManager: EventSourceDelegate {
         if let data = event.data {
             userInfo[Notification.Key.Data.rawValue] = data
         }
-        
+		
+		if let jsonData = event.jsonData {
+			userInfo[Notification.Key.JSONData.rawValue] = jsonData
+		}
+		
         NSNotificationCenter.defaultCenter().postNotificationName(Notification.Event.rawValue, object: eventSource, userInfo: userInfo)
     }
     
