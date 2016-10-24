@@ -85,7 +85,11 @@ public class SSEManager {
         //TODO
         
         dispatch_sync(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0)) {
+			if (eventSource == self.primaryEventSource) {
+				self.primaryEventSource	= nil
+			}
             self.eventSources.remove(eventSource)
+			
         }
     }
 }
