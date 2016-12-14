@@ -11,17 +11,17 @@ import Foundation
 // TODO: Split out into multiple files
 
 public enum ReadyState: Int {
-    case Connecting = 0
-    case Open = 1
-    case Closed = 2
+    case connecting = 0
+    case open = 1
+    case closed = 2
 }
 
-public enum Error: ErrorType {
+public enum EventSourceError: Error {
     
-    case BadEvent
-    case SourceConnectionTimeout
-    case SourceNotFound(Int?) //HTTP Status code
-    case Unknown
+    case badEvent
+    case sourceConnectionTimeout
+    case sourceNotFound(Int?) //HTTP Status code
+    case unknown
 }
 
 //public protocol EventSourceConformist {
@@ -39,15 +39,15 @@ public protocol EventSourceConnectable {
     func disconnect()
 }
 
-public class EventSource: NSObject {
+open class EventSource: NSObject {
 
-    public var name: String? {
+    open var name: String? {
         return self.configuration.name
     }
     
-    public var readyState: ReadyState = .Closed
-    public var configuration: EventSourceConfiguration
-    weak public var delegate: EventSourceDelegate?
+    open var readyState: ReadyState = .closed
+    open var configuration: EventSourceConfiguration
+    weak open var delegate: EventSourceDelegate?
     
     public required init(configuration: EventSourceConfiguration, delegate: EventSourceDelegate) {
         
@@ -59,7 +59,7 @@ public class EventSource: NSObject {
 		
 	}
 	
-	public func disconnect() {
+	open func disconnect() {
 		// don't do anything - virtual?
 	}
 }
@@ -68,7 +68,7 @@ public struct Event: CustomDebugStringConvertible {
     
     struct Metadata {
         
-        let timestamp: NSDate
+        let timestamp: Date
         let hostUri: String
     }
     
@@ -77,10 +77,10 @@ public struct Event: CustomDebugStringConvertible {
     
     let identifier: String?
     let event: String?
-    let data: NSData?
+    let data: Data?
 	let jsonData: Dictionary<String, AnyObject>?
     
-    init?(withEventSource eventSource: EventSource, identifier: String?, event: String?, data: NSData?) {
+    init?(withEventSource eventSource: EventSource, identifier: String?, event: String?, data: Data?) {
         
         guard identifier != nil else {
             
@@ -88,13 +88,13 @@ public struct Event: CustomDebugStringConvertible {
         }
         
         configuration = eventSource.configuration
-        self.metadata = Metadata(timestamp: NSDate(), hostUri: configuration.uri)
+        self.metadata = Metadata(timestamp: Date(), hostUri: configuration.uri)
         
         self.identifier = identifier
         self.event = event
         self.data = data
 		if (data != nil) {
-			let jsonData = try? NSJSONSerialization.JSONObjectWithData(data!, options:[])
+			let jsonData = try? JSONSerialization.jsonObject(with: data!, options:[])
 			self.jsonData = jsonData as? Dictionary<String, AnyObject>
 		}
 		else {
@@ -104,57 +104,57 @@ public struct Event: CustomDebugStringConvertible {
     
     public var debugDescription: String {
         
-        return "Event {\(self.identifier != nil ? self.identifier! : "nil"), \(self.event != nil ? self.event! : "nil"), Data length: \(self.data != nil ? self.data!.length : 0)}"
+        return "Event {\(self.identifier != nil ? self.identifier! : "nil"), \(self.event != nil ? self.event! : "nil"), Data length: \(self.data != nil ? self.data!.count : 0)}"
     }
 }
 
 @objc
 public final class PrimaryEventSource: EventSource, EventSourceConnectable {
     
-    private var task: NSURLSessionDataTask?
-    private var children = Set<ChildEventSource>()
-    private var retries = 0
-    private let maxRetries = 3
+    fileprivate var task: URLSessionDataTask?
+    fileprivate var children = Set<ChildEventSource>()
+    fileprivate var retries = 0
+    fileprivate let maxRetries = 3
     
-    internal func add(child child: ChildEventSource) {
+    internal func add(child: ChildEventSource) {
         
-        dispatch_sync(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0)) {
+       _ = DispatchQueue.global(qos: DispatchQoS.QoSClass.utility).sync {
             self.children.insert(child)
         }
     }
     
-    internal func remove(child child: ChildEventSource) {
+    internal func remove(child: ChildEventSource) {
         
-        dispatch_sync(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0)) {
+        _ = DispatchQueue.global(qos: DispatchQoS.QoSClass.utility).sync {
             self.children.remove(child)
         }
     }
     
     public func connect() {
         
-        self.readyState = .Connecting
+        self.readyState = .connecting
         
-        let sessionConfig = NSURLSessionConfiguration.defaultSessionConfiguration()
-        sessionConfig.requestCachePolicy = .ReloadIgnoringLocalCacheData
-        sessionConfig.timeoutIntervalForRequest = NSTimeInterval(5)
-        sessionConfig.timeoutIntervalForResource = NSTimeInterval(INT_MAX)
-        sessionConfig.HTTPAdditionalHeaders = ["Accept" : "text/event-stream", "Cache-Control" : "no-cache"]
+        let sessionConfig = URLSessionConfiguration.default
+        sessionConfig.requestCachePolicy = .reloadIgnoringLocalCacheData
+        sessionConfig.timeoutIntervalForRequest = TimeInterval(5)
+        sessionConfig.timeoutIntervalForResource = TimeInterval(INT_MAX)
+        sessionConfig.httpAdditionalHeaders = ["Accept" : "text/event-stream", "Cache-Control" : "no-cache"]
         
-        let session = NSURLSession(configuration: sessionConfig, delegate: self, delegateQueue: nil) //This requires self be marked as @objc
+        let session = Foundation.URLSession(configuration: sessionConfig, delegate: self, delegateQueue: nil) //This requires self be marked as @objc
         
         //???: We might need this task\\?
         
-        let urlComponents = NSURLComponents()
+        var urlComponents = URLComponents()
         urlComponents.host = self.configuration.hostAddress
         urlComponents.path = self.configuration.endpoint
         urlComponents.port = self.configuration.port
         urlComponents.scheme = "http" //FIXME: This should be settable in config
         
-        if let url = urlComponents.URL {
+        if let url = urlComponents.url {
             
             //print("URL: \(url)")
             
-            self.task = session.dataTaskWithURL(url)
+            self.task = session.dataTask(with: url)
             self.task?.resume()
         }
         else {
@@ -164,13 +164,13 @@ public final class PrimaryEventSource: EventSource, EventSourceConnectable {
     
     public override func disconnect() {
         
-        guard let t = self.task where t.state != .Canceling else {
+        guard let t = self.task, t.state != .canceling else {
             return
         }
         
         self.task?.cancel()
         self.task = nil
-        self.readyState = .Closed
+        self.readyState = .closed
 
         if self.retries < self.maxRetries {
             self.retries = self.retries + 1
@@ -190,27 +190,22 @@ public final class PrimaryEventSource: EventSource, EventSourceConnectable {
     }
 }
 
-extension PrimaryEventSource: NSURLSessionDataDelegate {
+extension PrimaryEventSource: URLSessionDataDelegate {
     
-    public func URLSession(session: NSURLSession, task: NSURLSessionTask, didCompleteWithError error: NSError?) {
+    public func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         
-        disconnect()
-    }
-    
-    public func URLSession(session: NSURLSession, dataTask: NSURLSessionDataTask, didReceiveData data: NSData) {
-        
-        guard self.readyState != .Closed else {
+        guard self.readyState != .closed else {
             
             //Discard any data from here on in
             return
         }
         
-        guard let responce = dataTask.response as? NSHTTPURLResponse else {
+        guard let responce = dataTask.response as? HTTPURLResponse else {
             
             return //not connected yet
         }
         
-        if self.readyState == .Connecting {
+        if self.readyState == .connecting {
             
             switch responce.statusCode {
                 
@@ -218,14 +213,14 @@ extension PrimaryEventSource: NSURLSessionDataDelegate {
                 fallthrough
             case 300...399:
                 self.delegate?.eventSourceDidConnect(self)
-                self.readyState = .Open
+                self.readyState = .open
                 self.retries = 0
                 break
                 
             case 400...499:
                 fallthrough
             default:
-                self.delegate?.eventSource(self, didEncounterError: .SourceNotFound(responce.statusCode))
+                self.delegate?.eventSource(self, didEncounterError: .sourceNotFound(responce.statusCode))
                 disconnect()
                 return
             }
@@ -234,26 +229,26 @@ extension PrimaryEventSource: NSURLSessionDataDelegate {
         inline_URLSession(session, dataTask: dataTask, didReceiveData: data)
     }
     
-    public func inline_URLSession(session: NSURLSession, dataTask: NSURLSessionDataTask, didReceiveData data: NSData) {
+    public func inline_URLSession(_ session: Foundation.URLSession, dataTask: URLSessionDataTask, didReceiveData data: Data) {
         
-        func extractValue(scanner: NSScanner) -> (String?, String?) {
+        func extractValue(_ scanner: Scanner) -> (String?, String?) {
             
             var field: NSString?
-            scanner.scanUpToString(":", intoString: &field)
-            scanner.scanString(":", intoString: nil)
+            scanner.scanUpTo(":", into: &field)
+            scanner.scanString(":", into: nil)
             
             var value: NSString?
-            scanner.scanUpToString("\n", intoString: &value)
+            scanner.scanUpTo("\n", into: &value)
             
-            return (field?.stringByTrimmingCharactersInSet(NSCharacterSet.whitespaceAndNewlineCharacterSet()), value?.stringByTrimmingCharactersInSet(NSCharacterSet.whitespaceAndNewlineCharacterSet()))
+            return (field?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines), value?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines))
         }
         
-        data.enumerateByteRangesUsingBlock { (pointer, range, stop) in
+        data.enumerateBytes { (pointer, index, stop) in
             
-            if let eventString = NSString(bytes: pointer, length: range.length, encoding: 4) {
+            if let eventString = NSString(bytes: pointer.baseAddress! , length: index, encoding: 4) {
                 
-                let scanner = NSScanner(string: eventString as String)
-                scanner.charactersToBeSkipped = NSCharacterSet.whitespaceCharacterSet()
+                let scanner = Scanner(string: eventString as String)
+                scanner.charactersToBeSkipped = CharacterSet.whitespaces
                 
                 var eventId: String?, eventName: String?, eventData: String?
                 var stop = false
@@ -280,29 +275,29 @@ extension PrimaryEventSource: NSURLSessionDataDelegate {
                 // Send all events to children
                 for child in self.children {
                     
-                    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0)) {
+                    DispatchQueue.global(qos: DispatchQoS.QoSClass.utility).async {
                         
-                        if let event = Event(withEventSource: self, identifier: eventId, event: eventName, data: eventData?.dataUsingEncoding(NSUTF8StringEncoding)) {
+                        if let event = Event(withEventSource: self, identifier: eventId, event: eventName, data: eventData?.data(using: String.Encoding.utf8)) {
                             child.eventSource(self, didReceiveEvent: event)
                         }
                     }
                 }
                 
                 // Don't create events if nobody is listerning
-                if let evnArray = self.configuration.events, let evn = eventName where evnArray.contains(evn) {
+                if let evnArray = self.configuration.events, let evn = eventName, evnArray.contains(evn) {
                     
-                    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0)) {
+                    DispatchQueue.global(qos: DispatchQoS.QoSClass.utility).async {
                         
-                        if let event = Event(withEventSource: self, identifier: eventId, event: evn, data: eventData?.dataUsingEncoding(NSUTF8StringEncoding)) {
+                        if let event = Event(withEventSource: self, identifier: eventId, event: evn, data: eventData?.data(using: String.Encoding.utf8)) {
                             self.delegate?.eventSource(self, didReceiveEvent: event)
                         }
                     }
                 }
                 else if self.configuration.events == nil {
                     
-                    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0)) {
+                    DispatchQueue.global(qos: DispatchQoS.QoSClass.utility).async {
                         
-                        if let event = Event(withEventSource: self, identifier: eventId, event: eventName, data: eventData?.dataUsingEncoding(NSUTF8StringEncoding)) {
+                        if let event = Event(withEventSource: self, identifier: eventId, event: eventName, data: eventData?.data(using: String.Encoding.utf8)) {
                             self.delegate?.eventSource(self, didReceiveEvent: event)
                         }
                     }
@@ -310,6 +305,13 @@ extension PrimaryEventSource: NSURLSessionDataDelegate {
             }
         }
     }
+}
+
+extension PrimaryEventSource {
+	public func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Event?) {
+		
+		disconnect()
+	}
 }
 
 @objc
@@ -338,28 +340,28 @@ public final class ChildEventSource: EventSource, EventSourceConnectable {
     public override func disconnect() {
         
         delegate?.eventSourceWillDisconnect(self)
-        self.readyState = .Closed
+        self.readyState = .closed
         delegate?.eventSourceDidDisconnect(self)
     }
 }
 
 extension ChildEventSource: EventSourceDelegate {
     
-    public func eventSource(eventSource: EventSource, didChangeState state: ReadyState) { /* Ignore */ }
+    public func eventSource(_ eventSource: EventSource, didChangeState state: ReadyState) { /* Ignore */ }
     
-    public func eventSourceDidConnect(eventSource: EventSource) { /* Ignore */ }
+    public func eventSourceDidConnect(_ eventSource: EventSource) { /* Ignore */ }
     
-    public func eventSourceWillDisconnect(eventSource: EventSource) { /* Ignore */ }
+    public func eventSourceWillDisconnect(_ eventSource: EventSource) { /* Ignore */ }
     
-    public func eventSourceDidDisconnect(eventSource: EventSource) {
+    public func eventSourceDidDisconnect(_ eventSource: EventSource) {
         self.disconnect()
     }
     
-    public func eventSource(eventSource: EventSource, didReceiveEvent event: Event) {
+    public func eventSource(_ eventSource: EventSource, didReceiveEvent event: Event) {
     
-        if let evnArray = self.configuration.events, let evn = event.event where evnArray.contains(evn) {
+        if let evnArray = self.configuration.events, let evn = event.event, evnArray.contains(evn) {
             
-            dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0)) {
+            DispatchQueue.global(qos: DispatchQoS.QoSClass.utility).async {
                 
                 if let event = Event(withEventSource: self, identifier: event.identifier, event: event.event, data: event.data) {
                     self.delegate?.eventSource(self, didReceiveEvent: event)
@@ -368,7 +370,7 @@ extension ChildEventSource: EventSourceDelegate {
         }
         else if self.configuration.events == nil {
             
-            dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0)) {
+            DispatchQueue.global(qos: DispatchQoS.QoSClass.utility).async {
                 
                 if let event = Event(withEventSource: self, identifier: event.identifier, event: event.event, data: event.data) {
                     self.delegate?.eventSource(self, didReceiveEvent: event)
@@ -377,17 +379,17 @@ extension ChildEventSource: EventSourceDelegate {
         }
     }
     
-    public func eventSource(eventSource: EventSource, didEncounterError error: Error) { /* Ignore */ }
+    public func eventSource(_ eventSource: EventSource, didEncounterError error: EventSourceError) { /* Ignore */ }
 }
 
 public protocol EventSourceDelegate: class {
     
-    func eventSource(eventSource: EventSource, didChangeState state: ReadyState)
+    func eventSource(_ eventSource: EventSource, didChangeState state: ReadyState)
     
-    func eventSourceDidConnect(eventSource: EventSource)
-    func eventSourceWillDisconnect(eventSource: EventSource)
-    func eventSourceDidDisconnect(eventSource: EventSource)
+    func eventSourceDidConnect(_ eventSource: EventSource)
+    func eventSourceWillDisconnect(_ eventSource: EventSource)
+    func eventSourceDidDisconnect(_ eventSource: EventSource)
     
-    func eventSource(eventSource: EventSource, didReceiveEvent event: Event)
-    func eventSource(eventSource: EventSource, didEncounterError error: Error)
+    func eventSource(_ eventSource: EventSource, didReceiveEvent event: Event)
+    func eventSource(_ eventSource: EventSource, didEncounterError error: EventSourceError)
 }

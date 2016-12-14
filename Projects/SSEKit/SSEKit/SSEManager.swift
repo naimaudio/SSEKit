@@ -31,26 +31,26 @@ public extension SSEManager {
 }
 
 // MARK: - SSEManager
-public class SSEManager {
+open class SSEManager {
     
-    private var primaryEventSource: PrimaryEventSource?
-    private var eventSources = Set<EventSource>()
+    fileprivate var primaryEventSource: PrimaryEventSource?
+    fileprivate var eventSources = Set<EventSource>()
     
     public init(sources: [EventSourceConfiguration]) {
         
         for config in sources {
-            addEventSource(config)
+            _ = addEventSource(config)
         }
     }
     
     /**
      Add an EventSource to the manager.
      */
-    public func addEventSource(eventSourceConfig: EventSourceConfiguration) -> EventSource {
+    open func addEventSource(_ eventSourceConfig: EventSourceConfiguration) -> EventSource {
         
         var eventSource: EventSource!
         
-        dispatch_sync(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0)) {
+        DispatchQueue.global(qos: DispatchQoS.QoSClass.utility).sync {
             
             if self.primaryEventSource == nil {
                 eventSource = PrimaryEventSource(configuration: eventSourceConfig, delegate: self)
@@ -63,7 +63,7 @@ public class SSEManager {
         
         precondition(eventSource != nil, "Cannot be nil.")
         
-        dispatch_sync(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0)) {
+        _ = DispatchQueue.global(qos: DispatchQoS.QoSClass.utility).sync {
             self.eventSources.insert(eventSource)
         }
         
@@ -76,7 +76,7 @@ public class SSEManager {
     /**
      Disconnect and remove EventSource from manager.
      */
-    public func removeEventSource(eventSource: EventSource) {
+    open func removeEventSource(_ eventSource: EventSource) {
         
         //TODO: Clean up - this is how clients disconnect the source.
         
@@ -84,7 +84,7 @@ public class SSEManager {
 
         //TODO
         
-        dispatch_sync(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0)) {
+        DispatchQueue.global(qos: DispatchQoS.QoSClass.utility).sync {
 			if (eventSource == self.primaryEventSource) {
 				self.primaryEventSource	= nil
 			}
@@ -97,58 +97,58 @@ public class SSEManager {
 // MARK: - EventSourceDelegate
 extension SSEManager: EventSourceDelegate {
     
-    public func eventSource(eventSource: EventSource, didChangeState state: ReadyState) {
+    public func eventSource(_ eventSource: EventSource, didChangeState state: ReadyState) {
         
         //TODO: Logging
         print("State -> \(eventSource) -> \(state)")
     }
     
-    public func eventSourceDidConnect(eventSource: EventSource) {
+    public func eventSourceDidConnect(_ eventSource: EventSource) {
         
-        NSNotificationCenter.defaultCenter().postNotificationName(Notification.Connected.rawValue, object: eventSource, userInfo: [ Notification.Key.Source.rawValue : eventSource.configuration.uri ])
+        NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Connected.rawValue), object: eventSource, userInfo: [ Notification.Key.Source.rawValue : eventSource.configuration.uri ])
     }
     
-    public func eventSourceWillDisconnect(eventSource: EventSource) {}
+    public func eventSourceWillDisconnect(_ eventSource: EventSource) {}
     
-    public func eventSourceDidDisconnect(eventSource: EventSource) {
+    public func eventSourceDidDisconnect(_ eventSource: EventSource) {
         
         //Remove disconnected EventSource objects from the array
-        dispatch_sync(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0)) {
+        DispatchQueue.global(qos: DispatchQoS.QoSClass.utility).sync {
             //TODO
 //            if let esIndex = self.eventSources.indexOf(eventSource) {
 //                self.eventSources.removeAtIndex(esIndex)
 //            }
         }
         
-        NSNotificationCenter.defaultCenter().postNotificationName(Notification.Disconnected.rawValue, object: eventSource, userInfo: [ Notification.Key.Source.rawValue : eventSource.configuration.uri ])
+        NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Disconnected.rawValue), object: eventSource, userInfo: [ Notification.Key.Source.rawValue : eventSource.configuration.uri ])
     }
     
-    public func eventSource(eventSource: EventSource, didReceiveEvent event: Event) {
+    public func eventSource(_ eventSource: EventSource, didReceiveEvent event: Event) {
         
         //print("[ES#: \(eventSources.count)] \(eventSource) -> \(event)")
         
-        var userInfo: [String: AnyObject] = [Notification.Key.Source.rawValue : eventSource.configuration.uri, Notification.Key.Timestamp.rawValue : event.metadata.timestamp]
+        var userInfo: [String: AnyObject] = [Notification.Key.Source.rawValue : eventSource.configuration.uri as AnyObject, Notification.Key.Timestamp.rawValue : event.metadata.timestamp as AnyObject]
         
         if let identifier = event.identifier {
-            userInfo[Notification.Key.Identifier.rawValue] = identifier
+            userInfo[Notification.Key.Identifier.rawValue] = identifier as AnyObject?
         }
         
         if let name = event.event {
-            userInfo[Notification.Key.Name.rawValue] = name
+            userInfo[Notification.Key.Name.rawValue] = name as AnyObject?
         }
         
         if let data = event.data {
-            userInfo[Notification.Key.Data.rawValue] = data
+            userInfo[Notification.Key.Data.rawValue] = data as AnyObject?
         }
 		
 		if let jsonData = event.jsonData {
-			userInfo[Notification.Key.JSONData.rawValue] = jsonData
+			userInfo[Notification.Key.JSONData.rawValue] = jsonData as AnyObject?
 		}
 		
-        NSNotificationCenter.defaultCenter().postNotificationName(Notification.Event.rawValue, object: eventSource, userInfo: userInfo)
+        NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Event.rawValue), object: eventSource, userInfo: userInfo)
     }
     
-    public func eventSource(eventSource: EventSource, didEncounterError error: Error) {
+    public func eventSource(_ eventSource: EventSource, didEncounterError error: EventSourceError) {
         
         //TODO: Send error notification
         //print("Error -> \(eventSource) -> \(error)")
