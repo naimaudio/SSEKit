@@ -19,20 +19,20 @@ class ViewController: UIViewController {
         super.viewDidLoad()
         // Do any additional setup after loading the view, typically from a nib.
         
-        NSNotificationCenter.defaultCenter().addObserverForName(nil, object: nil, queue: nil) {
+        NotificationCenter.default.addObserver(forName: nil, object: nil, queue: nil) {
             
             //SSEManager.Notification.Key.Name.rawValue
             
             guard   let name = $0.userInfo?[SSEManager.Notification.Key.Name.rawValue],
-                    let data = $0.userInfo?[SSEManager.Notification.Key.Data.rawValue] as? NSData,
+                    let data = $0.userInfo?[SSEManager.Notification.Key.Data.rawValue] as? Data,
                     let identifier = $0.userInfo?[SSEManager.Notification.Key.Identifier.rawValue] as? String,
-                    let timestamp = $0.userInfo?[SSEManager.Notification.Key.Timestamp.rawValue] as? NSDate
+                    let timestamp = $0.userInfo?[SSEManager.Notification.Key.Timestamp.rawValue] as? Date
             else {
             
                 return
             }
             
-            let dataStr = String(data: data, encoding: 4)!
+            let dataStr = String(data: data, encoding: String.Encoding(rawValue: 4))!
             
             print("\(timestamp): [\(identifier)] \(name) -> \(dataStr)")
         }
@@ -59,13 +59,13 @@ class ViewController: UIViewController {
         }
 */
         
-        let configNowPlaying = EventSourceConfiguration(withHost: "192.168.37.123", port: 15081, endpoint: "/notify", timeout: 10, events: ["lists", "inputs", "albums"], name: "📢")
+        let configNowPlaying = EventSourceConfiguration(withHost: "192.168.103.90", port: 15081, endpoint: "/notify", timeout: 10, events: ["lists", "inputs", "albums"], name: "📢")
         let npEs = manager?.addEventSource(configNowPlaying)
-        NSNotificationCenter.defaultCenter().addObserver(self, selector: #selector(onEvent(_:)), name: SSEManager.Notification.Event.rawValue, object: npEs)
+        NotificationCenter.default.addObserver(self, selector: #selector(onEvent(_:)), name: NSNotification.Name(rawValue: SSEManager.Notification.Event.rawValue), object: npEs)
         
-        let configInput = EventSourceConfiguration(withHost: "192.168.37.123", port: 15081, endpoint: "/notify", timeout: 10, events: ["nowplaying"], name: "🎙")
+        let configInput = EventSourceConfiguration(withHost: "192.168.103.79", port: 15081, endpoint: "/notify", timeout: 10, events: ["nowplaying"], name: "🎙")
         let inptEs = manager?.addEventSource(configInput)
-        NSNotificationCenter.defaultCenter().addObserver(self, selector: #selector(onEvent(_:)), name: SSEManager.Notification.Event.rawValue, object: inptEs)
+        NotificationCenter.default.addObserver(self, selector: #selector(onEvent(_:)), name: NSNotification.Name(rawValue: SSEManager.Notification.Event.rawValue), object: inptEs)
         
         //manager = SSEManager(sources: [config2])
         //manager = SSEManager(sources: [config3])
@@ -86,7 +86,7 @@ class ViewController: UIViewController {
     }
     
     @objc
-    func onEvent(note: NSNotification) {
+    func onEvent(_ note: Notification) {
         
         if let identifier = note.userInfo?["Identifier"],
             let name = note.userInfo?["Name"],
@@ -99,41 +99,41 @@ class ViewController: UIViewController {
             
             let event = "\(eventSource.name!) [\(identifier)]\t\(name)\t\(source)\t\(timestamp)\n"
             
-            dispatch_async(dispatch_get_main_queue()) {
+            DispatchQueue.main.async {
                 self.logViewer.text = (event + self.logViewer.text)
             }
         }
     }
     
-    func onEvent2(note: NSNotification) {
+    func onEvent2(_ note: Notification) {
         
         if let identifier = note.userInfo?["Identifier"],
             let name = note.userInfo?["Name"] {
             
             let event = "2️⃣[\(identifier)]\t\(name)\n"
             
-            dispatch_async(dispatch_get_main_queue()) {
+            DispatchQueue.main.async {
                 self.logViewer.text = (event + self.logViewer.text)
             }
             
         }
     }
     
-    func onConnected(note: NSNotification) {
+    func onConnected(_ note: Notification) {
         
-        dispatch_async(dispatch_get_main_queue()) {
+        DispatchQueue.main.async {
             self.logViewer.text = ("   **** CONNECTED ****" + self.logViewer.text)
         }
     }
     
-    func onDisconnected(note: NSNotification) {
+    func onDisconnected(_ note: Notification) {
         
-        dispatch_async(dispatch_get_main_queue()) {
+        DispatchQueue.main.async {
             self.logViewer.text = ("   ==== DISCONNECTED ===="  + self.logViewer.text)
         }
     }
     
-    override func prefersStatusBarHidden() -> Bool {
+    override var prefersStatusBarHidden : Bool {
         return true
     }
 }

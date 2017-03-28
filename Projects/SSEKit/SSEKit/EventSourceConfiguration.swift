@@ -16,7 +16,7 @@ public struct EventSourceConfiguration {
     internal let port: Int
     internal let endpoint: String
     
-    internal let timeout: NSTimeInterval
+    internal let timeout: TimeInterval
     
     internal let events: [String]?
     
@@ -26,7 +26,7 @@ public struct EventSourceConfiguration {
     
     //options?
     
-    public init(withHost host: String, port: Int = 80, endpoint: String, timeout: NSTimeInterval = 5, events: [String]? = nil, name: String? = nil) {
+    public init(withHost host: String, port: Int = 80, endpoint: String, timeout: TimeInterval = 5, events: [String]? = nil, name: String? = nil) {
         
         precondition(endpoint.characters.first == "/", "Endpoint does not begin with a /")
         

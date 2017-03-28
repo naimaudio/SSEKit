@@ -209,7 +209,7 @@
 					2AA0D22F1C7C9A3B006E83D0 = {
 						CreatedOnToolsVersion = 7.3;
 						DevelopmentTeam = 99935HA2E3;
-						LastSwiftMigration = 0800;
+						LastSwiftMigration = 0830;
 					};
 					2AA0D2391C7C9A3B006E83D0 = {
 						CreatedOnToolsVersion = 7.3;
@@ -413,7 +413,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.naimaudio.SSEKit;
 				SKIP_INSTALL = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 2.3;
+				SWIFT_VERSION = 3.0;
 			};
 			name = Debug;
 		};
@@ -431,7 +431,7 @@
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = com.naimaudio.SSEKit;
 				SKIP_INSTALL = YES;
-				SWIFT_VERSION = 2.3;
+				SWIFT_VERSION = 3.0;
 			};
 			name = Release;
 		};
