@@ -72,7 +72,16 @@ public class SSEManager {
         
         return eventSource
     }
-    
+	
+	public func reconnect() {
+		if (self.primaryEventSource?.readyState != .Open && self.primaryEventSource?.readyState != .Connecting) {
+			self.primaryEventSource?.connect()
+			for eventSource in self.eventSources {
+				(eventSource as? EventSourceConnectable)?.connect()
+			}
+		}
+	}
+	
     /**
      Disconnect and remove EventSource from manager.
      */
