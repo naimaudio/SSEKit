@@ -74,7 +74,7 @@ open class SSEManager {
     }
 	
 	public func reconnect() {
-		if (self.primaryEventSource?.readyState != .Open && self.primaryEventSource?.readyState != .Connecting) {
+		if (self.primaryEventSource?.readyState != .open && self.primaryEventSource?.readyState != .connecting) {
 			self.primaryEventSource?.connect()
 			for eventSource in self.eventSources {
 				(eventSource as? EventSourceConnectable)?.connect()
