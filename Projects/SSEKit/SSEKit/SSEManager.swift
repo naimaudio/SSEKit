@@ -32,16 +32,27 @@ public extension SSEManager {
 
 // MARK: - SSEManager
 open class SSEManager {
-    
+    private static var instanceCount = 0  // debug!
+	
     fileprivate var primaryEventSource: PrimaryEventSource?
     fileprivate var eventSources = Set<EventSource>()
+	
+	fileprivate var queue =  DispatchQueue(label: "com.naim.ssekit")
     
     public init(sources: [EventSourceConfiguration]) {
         
         for config in sources {
             _ = addEventSource(config)
         }
+		SSEManager.instanceCount = SSEManager.instanceCount + 1
+		NSLog("SSEManager init - instances \(SSEManager.instanceCount)")
     }
+	
+	deinit {
+		self.primaryEventSource = nil
+		SSEManager.instanceCount = SSEManager.instanceCount - 1
+		NSLog("SSEManager dealloc - deinit \(SSEManager.instanceCount)")
+	}
     
     /**
      Add an EventSource to the manager.
@@ -49,26 +60,26 @@ open class SSEManager {
     open func addEventSource(_ eventSourceConfig: EventSourceConfiguration) -> EventSource {
         
         var eventSource: EventSource!
-        
-        DispatchQueue.global(qos: DispatchQoS.QoSClass.utility).sync {
-            
+		
+		_ = self.queue.sync {
+			
             if self.primaryEventSource == nil {
-                eventSource = PrimaryEventSource(configuration: eventSourceConfig, delegate: self)
+                eventSource = PrimaryEventSource(configuration: eventSourceConfig, delegate: self, queue: self.queue)
                 self.primaryEventSource = eventSource as? PrimaryEventSource
             }
             else {
-                eventSource = ChildEventSource(withConfiguration: eventSourceConfig, primaryEventSource: self.primaryEventSource!, delegate: self)
+				eventSource = ChildEventSource(withConfiguration: eventSourceConfig, primaryEventSource: self.primaryEventSource!, delegate: self, queue:self.queue)
             }
         }
-        
+		
         precondition(eventSource != nil, "Cannot be nil.")
         
-        _ = DispatchQueue.global(qos: DispatchQoS.QoSClass.utility).sync {
+		_ = self.queue.sync {
             self.eventSources.insert(eventSource)
         }
-        
-        // Cast `eventSource` to `EventSourceConnectable` and connect
-        (eventSource as? EventSourceConnectable)?.connect()
+		
+		
+        eventSource?.connect()
         
         return eventSource
     }
@@ -77,7 +88,7 @@ open class SSEManager {
 		if (self.primaryEventSource?.readyState != .open && self.primaryEventSource?.readyState != .connecting) {
 			self.primaryEventSource?.connect()
 			for eventSource in self.eventSources {
-				(eventSource as? EventSourceConnectable)?.connect()
+				eventSource.connect()
 			}
 		}
 	}
@@ -86,14 +97,11 @@ open class SSEManager {
      Disconnect and remove EventSource from manager.
      */
     open func removeEventSource(_ eventSource: EventSource) {
-        
-        //TODO: Clean up - this is how clients disconnect the source.
-        
-        eventSource.disconnect()
+		        
+        eventSource.disconnect(allowRetry: false)
 
-        //TODO
         
-        DispatchQueue.global(qos: DispatchQoS.QoSClass.utility).sync {
+        self.queue.sync {
 			if (eventSource == self.primaryEventSource) {
 				self.primaryEventSource	= nil
 			}
@@ -101,6 +109,14 @@ open class SSEManager {
 			
         }
     }
+	
+	open func removeAllEventSources() {
+		let sources = self.eventSources
+		
+		sources.forEach { (source) in
+			self.removeEventSource(source)
+		}
+	}
 }
 
 // MARK: - EventSourceDelegate
@@ -122,12 +138,12 @@ extension SSEManager: EventSourceDelegate {
     public func eventSourceDidDisconnect(_ eventSource: EventSource) {
         
         //Remove disconnected EventSource objects from the array
-        DispatchQueue.global(qos: DispatchQoS.QoSClass.utility).sync {
+//        self.queue.sync {
             //TODO
 //            if let esIndex = self.eventSources.indexOf(eventSource) {
 //                self.eventSources.removeAtIndex(esIndex)
 //            }
-        }
+//        }
         
         NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Disconnected.rawValue), object: eventSource, userInfo: [ Notification.Key.Source.rawValue : eventSource.configuration.uri ])
     }
