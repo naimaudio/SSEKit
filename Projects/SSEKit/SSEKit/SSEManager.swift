@@ -74,7 +74,7 @@ open class SSEManager {
 		
         precondition(eventSource != nil, "Cannot be nil.")
         
-		_ = self.queue.sync {
+		_ = self.queue.async {
             self.eventSources.insert(eventSource)
         }
 		
@@ -101,7 +101,7 @@ open class SSEManager {
         eventSource.disconnect(allowRetry: false)
 
         
-        self.queue.sync {
+        self.queue.async {
 			if (eventSource == self.primaryEventSource) {
 				self.primaryEventSource	= nil
 			}
@@ -138,7 +138,7 @@ extension SSEManager: EventSourceDelegate {
     public func eventSourceDidDisconnect(_ eventSource: EventSource) {
         
         //Remove disconnected EventSource objects from the array
-//        self.queue.sync {
+//        self.queue.async {
             //TODO
 //            if let esIndex = self.eventSources.indexOf(eventSource) {
 //                self.eventSources.removeAtIndex(esIndex)

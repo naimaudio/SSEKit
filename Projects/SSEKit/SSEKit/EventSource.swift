@@ -109,15 +109,15 @@ public final class PrimaryEventSource: EventSource {
 	var session:URLSession?
     
     internal func add(child: ChildEventSource) {
-        
-        _ = self.queue.sync {
+		
+        _ = self.queue.async {
             self.children.insert(child)
         }
     }
     
     internal func remove(child: ChildEventSource) {
         
-        _ = self.queue.sync {
+        _ = self.queue.async {
             self.children.remove(child)
         }
     }
@@ -235,82 +235,95 @@ extension PrimaryEventSource: URLSessionDataDelegate {
     }
     
     public func inline_URLSession(_ session: Foundation.URLSession, dataTask: URLSessionDataTask, didReceiveData data: Data) {
-        
-        func extractValue(_ scanner: Scanner) -> (String?, String?) {
-            
-            var field: NSString?
-            scanner.scanUpTo(":", into: &field)
-            scanner.scanString(":", into: nil)
-            
-            var value: NSString?
-            scanner.scanUpTo("\n", into: &value)
-            
-            return (field?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines), value?.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines))
-        }
-        
-        //data.enumerateBytes { (pointer, range, stop) in
-        
-        //data.withUnsafeByte
-        //let str: String? =
-        if let eventString = String(data: data, encoding: .utf8) { //NSString(bytes: data.withUnsafeBytes length: data.count, encoding: 4) {
-                
-                let scanner = Scanner(string: eventString as String)
-                scanner.charactersToBeSkipped = CharacterSet.whitespaces
-                
-                var eventId: String?, eventName: String?, eventData: String?
-                var stop = false
-                
-                repeat {
-                    
-                    let entity = extractValue(scanner)
-                    
-                    if entity.0 == nil && entity.1 ==  nil {
-                        stop = true
-                    }
-                    else if entity.0 == "id" {
-                        eventId = entity.1
-                    }
-                    else if entity.0 == "event" {
-                        eventName = entity.1
-                    }
-                    else if entity.0 == "data" {
-                        eventData = entity.1
-                    }
-                    
-                } while(!stop)
-                
-                // Send all events to children
-                for child in self.children {
-                    
-                    self.queue.async {
-                        
-                        if let event = Event(withEventSource: self, identifier: eventId, event: eventName, data: eventData?.data(using: String.Encoding.utf8)) {
-                            child.eventSource(self, didReceiveEvent: event)
-                        }
-                    }
-                }
-                
-                // Don't create events if nobody is listerning
-                if let evnArray = self.configuration.events, let evn = eventName, evnArray.contains(evn) {
-                    
-                    self.queue.async {
-                        
-                        if let event = Event(withEventSource: self, identifier: eventId, event: evn, data: eventData?.data(using: String.Encoding.utf8)) {
-                            self.delegate?.eventSource(self, didReceiveEvent: event)
-                        }
-                    }
-                }
-                else if self.configuration.events == nil {
-                    
-                    self.queue.async {
-                        
-                        if let event = Event(withEventSource: self, identifier: eventId, event: eventName, data: eventData?.data(using: String.Encoding.utf8)) {
-                            self.delegate?.eventSource(self, didReceiveEvent: event)
-                        }
-                    }
-                }
-            }
-        //}
+		
+		func scan(_ scanner: Scanner, field:String) -> (String?) {
+			
+			let originalLocation = scanner.scanLocation
+			
+			scanner.scanUpTo("\(field):", into: nil)
+			
+			guard scanner.scanString("\(field):", into:nil) else { // not found, reset and return nil
+				scanner.scanLocation = originalLocation
+				return nil
+			}
+			
+			var value: NSString?
+			scanner.scanUpTo("\n", into: &value)
+			
+			// get rid of any newlines
+			scanner.scanCharacters(from: CharacterSet.whitespacesAndNewlines, into: nil)
+			
+			return value as String?;
+		}
+		
+		if let eventString = String(data: data, encoding: .utf8) { //NSString(bytes: data.withUnsafeBytes length: data.count, encoding: 4) {
+			
+			
+			let scanner = Scanner(string: eventString as String)
+			scanner.charactersToBeSkipped = CharacterSet.whitespaces
+			
+			repeat {
+				
+				var eventId: String?, eventName: String?, eventData: String?
+				
+				eventId = scan(scanner, field:"id")
+				
+				guard eventId !=  nil else { // finished
+					NSLog("SSEKit SSE - No id!")
+					return
+				}
+				
+				let loc = scanner.scanLocation
+				eventName = scan(scanner, field:"event")
+				scanner.scanLocation = loc // reset, as this is optional...
+				
+				// is this actually optional?
+//				guard eventName !=  nil else { // finished
+//					NSLog("SSEKit SSE - No event name!")
+//					return
+//				}
+				
+				eventData = scan(scanner, field:"data")
+				
+				guard eventData != nil else { // finished
+					NSLog("SSEKit SSE - No event data!")
+					return
+				}
+				
+				
+				
+				// Send all events to children
+				for child in self.children {
+					self.queue.async {
+						
+						if let event = Event(withEventSource: child, identifier: eventId, event: eventName, data: eventData?.data(using: String.Encoding.utf8)) {
+							child.eventSource(self, didReceiveEvent: event)
+						}
+					}
+				}
+				
+				// Don't create events if nobody is listerning
+				if let evnArray = self.configuration.events, let evn = eventName, evnArray.contains(evn) {
+					
+					self.queue.async {
+						
+						if let event = Event(withEventSource: self, identifier: eventId, event: evn, data: eventData?.data(using: String.Encoding.utf8)) {
+							self.delegate?.eventSource(self, didReceiveEvent: event)
+						}
+					}
+				}
+				else if self.configuration.events == nil {
+					
+					self.queue.async {
+						
+						if let event = Event(withEventSource: self, identifier: eventId, event: eventName, data: eventData?.data(using: String.Encoding.utf8)) {
+							self.delegate?.eventSource(self, didReceiveEvent: event)
+						}
+					}
+				}
+				
+			} while(!scanner.isAtEnd)
+		}
     }
 }
 
