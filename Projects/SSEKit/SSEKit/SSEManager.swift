@@ -61,7 +61,7 @@ open class SSEManager {
         
         var eventSource: EventSource!
 		
-		_ = self.queue.sync {
+		_ = self.queue.sync { // must be sync, need to check there is a primary source
 			
             if self.primaryEventSource == nil {
                 eventSource = PrimaryEventSource(configuration: eventSourceConfig, delegate: self, queue: self.queue)
@@ -130,8 +130,9 @@ extension SSEManager: EventSourceDelegate {
     }
     
     public func eventSourceDidConnect(_ eventSource: EventSource) {
-        
-        NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Connected.rawValue), object: eventSource, userInfo: [ Notification.Key.Source.rawValue : eventSource.configuration.uri ])
+		DispatchQueue.main.async {
+			NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Connected.rawValue), object: eventSource, userInfo: [ Notification.Key.Source.rawValue : eventSource.configuration.uri ])
+		}
     }
     
     public func eventSourceWillDisconnect(_ eventSource: EventSource) {}
@@ -145,8 +146,9 @@ extension SSEManager: EventSourceDelegate {
 //                self.eventSources.removeAtIndex(esIndex)
 //            }
 //        }
-        
-        NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Disconnected.rawValue), object: eventSource, userInfo: [ Notification.Key.Source.rawValue : eventSource.configuration.uri ])
+        DispatchQueue.main.async {
+			NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Disconnected.rawValue), object: eventSource, userInfo: [ Notification.Key.Source.rawValue : eventSource.configuration.uri ])
+		}
     }
     
     public func eventSource(_ eventSource: EventSource, didReceiveEvent event: Event) {
@@ -171,7 +173,9 @@ extension SSEManager: EventSourceDelegate {
 			userInfo[Notification.Key.JSONData.rawValue] = jsonData as AnyObject
 		}
 		
-        NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Event.rawValue), object: eventSource, userInfo: userInfo)
+		DispatchQueue.main.async {
+			NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Event.rawValue), object: eventSource, userInfo: userInfo)
+		}
     }
     
     public func eventSource(_ eventSource: EventSource, didEncounterError error: EventSourceError) {
