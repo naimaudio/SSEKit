@@ -88,7 +88,9 @@ open class SSEManager {
 		if (self.primaryEventSource?.readyState != .open && self.primaryEventSource?.readyState != .connecting) {
 			self.primaryEventSource?.connect()
 			for eventSource in self.eventSources {
-				eventSource.connect()
+				if (eventSource != self.primaryEventSource) {
+					eventSource.connect()
+				}
 			}
 		}
 	}
@@ -111,10 +113,9 @@ open class SSEManager {
     }
 	
 	open func removeAllEventSources() {
-		let sources = self.eventSources
-		
-		sources.forEach { (source) in
-			self.removeEventSource(source)
+		self.queue.async {
+			self.primaryEventSource	= nil
+			self.eventSources.removeAll()
 		}
 	}
 }
