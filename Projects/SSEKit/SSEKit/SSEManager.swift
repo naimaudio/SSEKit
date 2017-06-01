@@ -98,7 +98,7 @@ open class SSEManager {
     /**
      Disconnect and remove EventSource from manager.
      */
-    open func removeEventSource(_ eventSource: EventSource) {
+    open func removeEventSource(_ eventSource: EventSource, _ completion:@escaping ()->() = {}) {
 		        
         eventSource.disconnect(allowRetry: false)
 
@@ -109,20 +109,35 @@ open class SSEManager {
 			}
             self.eventSources.remove(eventSource)
 			
+			DispatchQueue.main.async {
+				
+				completion()
+			}
         }
     }
 	
-	open func removeAllEventSources() {
+	open func removeAllEventSources(_ completion:@escaping ()->()) {
+		
 		self.queue.async {
-			self.primaryEventSource	= nil
-			self.eventSources.removeAll()
+			if self.eventSources.count > 0 { // recurse until no more
+				self.removeEventSource(self.eventSources.first!, {
+					self.removeAllEventSources {
+						completion() // already on main
+					}
+				})
+			}
+			else {
+				DispatchQueue.main.async {
+					completion()
+				}
+			}
 		}
 	}
 }
 
 // MARK: - EventSourceDelegate
 extension SSEManager: EventSourceDelegate {
-    
+	
     public func eventSource(_ eventSource: EventSource, didChangeState state: ReadyState) {
         
         //TODO: Logging

@@ -50,7 +50,7 @@ open class EventSource: NSObject {
 		// virtual
 	}
 	
-	open func disconnect(allowRetry:Bool = true) {
+	open func disconnect(allowRetry:Bool = true, completion: @escaping ()->() = {}) {
 		// don't do anything - virtual?
 	}
 }
@@ -159,12 +159,13 @@ public final class PrimaryEventSource: EventSource {
 		}
     }
     
-	public override func disconnect(allowRetry:Bool = true) {
+	public override func disconnect(allowRetry:Bool = true, completion:@escaping ()->() = {}) {
 		_ = self.queue.async {
 			self.session?.invalidateAndCancel()
 			self.session = nil
 			
 			guard let t = self.task, t.state != .canceling else {
+				completion()
 				return
 			}
 			
@@ -185,6 +186,8 @@ public final class PrimaryEventSource: EventSource {
 					
 					child.delegate?.eventSourceDidDisconnect(child)
 				}
+				
+				completion()
 			}
 		}
 	}
@@ -354,11 +357,12 @@ public final class ChildEventSource: EventSource {
         self.delegate?.eventSourceDidConnect(self)
     }
     
-    public override func disconnect(allowRetry:Bool = true) {
+    public override func disconnect(allowRetry:Bool = true, completion:@escaping ()->() = {}) {
         
         delegate?.eventSourceWillDisconnect(self)
         self.readyState = .closed
         delegate?.eventSourceDidDisconnect(self)
+		completion()
     }
 }
 
