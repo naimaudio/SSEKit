@@ -34,7 +34,7 @@ public extension SSEManager {
 open class SSEManager {
     private static var instanceCount = 0  // debug!
 	
-    fileprivate var primaryEventSource: PrimaryEventSource?
+    fileprivate var primaryEventSource: PrimaryEventSource?  // TODO: remove - 1 connection per manager - adds too much complexity (and certainly the cause of a few bugs - as order of add/remove source matters)
     fileprivate var eventSources = Set<EventSource>()
 	
 	fileprivate var queue =  DispatchQueue(label: "com.naim.ssekit")
@@ -66,6 +66,7 @@ open class SSEManager {
             if self.primaryEventSource == nil {
                 eventSource = PrimaryEventSource(configuration: eventSourceConfig, delegate: self, queue: self.queue)
                 self.primaryEventSource = eventSource as? PrimaryEventSource
+				precondition(self.eventSources.count == 0, "primary event source created AFTER other sources...bugs will arise...")
             }
             else {
 				eventSource = ChildEventSource(withConfiguration: eventSourceConfig, primaryEventSource: self.primaryEventSource!, delegate: self, queue:self.queue)
@@ -85,13 +86,16 @@ open class SSEManager {
     }
 	
 	public func reconnect() {
-		if (self.primaryEventSource?.readyState != .open && self.primaryEventSource?.readyState != .connecting) {
+		if (self.eventSources.count > 0 && self.primaryEventSource?.readyState != .open && self.primaryEventSource?.readyState != .connecting) {
+			precondition(self.primaryEventSource != nil, "no primary event source!")
+			
 			self.primaryEventSource?.connect()
 			for eventSource in self.eventSources {
 				if (eventSource != self.primaryEventSource) {
 					eventSource.connect()
 				}
 			}
+			
 		}
 	}
 	
@@ -104,10 +108,14 @@ open class SSEManager {
 
         
         self.queue.async {
+		
 			if (eventSource == self.primaryEventSource) {
+				NSLog("destroy primary event source")
 				self.primaryEventSource	= nil
+				
 			}
-            self.eventSources.remove(eventSource)
+			
+			self.eventSources.remove(eventSource)
 			
 			DispatchQueue.main.async {
 				
@@ -119,16 +127,24 @@ open class SSEManager {
 	open func removeAllEventSources(_ completion:@escaping ()->()) {
 		
 		self.queue.async {
-			if self.eventSources.count > 0 { // recurse until no more
-				self.removeEventSource(self.eventSources.first!, {
-					self.removeAllEventSources {
-						completion() // already on main
-					}
-				})
-			}
-			else {
+			
+			var count = self.eventSources.count
+			guard count != 0 else {
 				DispatchQueue.main.async {
 					completion()
+				}
+				return
+			}
+			
+			for eventSource in self.eventSources {
+				eventSource.disconnect(allowRetry: false) {
+					count = count - 1
+					if count == 0 {
+						self.primaryEventSource	= nil
+						DispatchQueue.main.async {
+							completion()
+						}
+					}
 				}
 			}
 		}
