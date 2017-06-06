@@ -86,13 +86,15 @@ open class SSEManager {
     }
 	
 	public func reconnect() {
-		if (self.eventSources.count > 0 && self.primaryEventSource?.readyState != .open && self.primaryEventSource?.readyState != .connecting) {
-			precondition(self.primaryEventSource != nil, "no primary event source!")
-			
-			self.primaryEventSource?.connect()
-			for eventSource in self.eventSources {
-				if (eventSource != self.primaryEventSource) {
-					eventSource.connect()
+		self.queue.async {
+			if (self.eventSources.count > 0 && self.primaryEventSource?.readyState != .open && self.primaryEventSource?.readyState != .connecting) {
+				precondition(self.primaryEventSource != nil, "no primary event source!")
+				
+				self.primaryEventSource?.connect()
+				for eventSource in self.eventSources {
+					if (eventSource != self.primaryEventSource) {
+						eventSource.connect()
+					}
 				}
 			}
 			
@@ -141,6 +143,7 @@ open class SSEManager {
 					count = count - 1
 					if count == 0 {
 						self.primaryEventSource	= nil
+						self.eventSources.removeAll()
 						DispatchQueue.main.async {
 							completion()
 						}
