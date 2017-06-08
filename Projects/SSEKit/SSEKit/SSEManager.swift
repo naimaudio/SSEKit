@@ -106,24 +106,23 @@ open class SSEManager {
      */
     open func removeEventSource(_ eventSource: EventSource, _ completion:@escaping ()->() = {}) {
 		        
-        eventSource.disconnect(allowRetry: false)
-
-        
-        self.queue.async {
-		
-			if (eventSource == self.primaryEventSource) {
-				NSLog("destroy primary event source")
-				self.primaryEventSource	= nil
-				
-			}
+		eventSource.disconnect(allowRetry: false, completion: {
+	
+			self.queue.async {
 			
-			self.eventSources.remove(eventSource)
-			
-			DispatchQueue.main.async {
+				if (eventSource == self.primaryEventSource) {
+					NSLog("destroy primary event source")
+					self.primaryEventSource	= nil
+					
+				}
 				
-				completion()
+				self.eventSources.remove(eventSource)
+				
+				DispatchQueue.main.async {
+					completion()
+				}
 			}
-        }
+		})
     }
 	
 	open func removeAllEventSources(_ completion:@escaping ()->()) {
