@@ -88,7 +88,7 @@ open class SSEManager {
 	public func reconnect() {
 		self.queue.async {
 			if (self.eventSources.count > 0 && self.primaryEventSource?.readyState != .open && self.primaryEventSource?.readyState != .connecting) {
-				precondition(self.primaryEventSource != nil, "no primary event source!")
+				precondition(self.primaryEventSource != nil, "no primary event source!Dump other event sources: \(self.eventSources)")
 				
 				self.primaryEventSource?.connect()
 				for eventSource in self.eventSources {
