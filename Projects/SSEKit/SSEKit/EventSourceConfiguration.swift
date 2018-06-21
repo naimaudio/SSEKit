@@ -28,7 +28,7 @@ public struct EventSourceConfiguration {
     
     public init(withHost host: String, port: Int = 80, endpoint: String, timeout: TimeInterval = 5, events: [String]? = nil, name: String? = nil) {
         
-        precondition(endpoint.characters.first == "/", "Endpoint does not begin with a /")
+        precondition(endpoint.first == "/", "Endpoint does not begin with a /")
         
         self.hostAddress = host
         self.port = port
