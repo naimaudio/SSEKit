@@ -11,58 +11,58 @@ import SSEKit
 
 class ViewController: UIViewController {
 
-    let sse = EventSource(host: "lamp.private", path: "/sse.php")
+	let sse = EventSource(host: "lamp.private", path: "/sse.php")
     
-    override func viewDidLoad() {
-        super.viewDidLoad()
+	override func viewDidLoad() {
+		super.viewDidLoad()
             
-        print("SSEKit version: \(sse.versionString)")
+		print("SSEKit version: \(sse.versionString)")
 
-    }
+	}
 
-    override func didReceiveMemoryWarning() {
-        super.didReceiveMemoryWarning()
-        // Dispose of any resources that can be recreated.
-    }
+	override func didReceiveMemoryWarning() {
+		super.didReceiveMemoryWarning()
+		// Dispose of any resources that can be recreated.
+	}
 
 }
 /*
 class ViewController: UIViewController, StateDelegate {
 
-    enum ExampleState {
-        case Initial
-    }
+	enum ExampleState {
+		case Initial
+	}
     
-    typealias StateType = ExampleState
+	typealias StateType = ExampleState
     
-    override func viewDidLoad() {
-        super.viewDidLoad()
+	override func viewDidLoad() {
+		super.viewDidLoad()
         
-        let stateMachine = State<ViewController>(initialState:.Initial, delegate:self)
+		let stateMachine = State<ViewController>(initialState:.Initial, delegate:self)
         
-        print("State: \(stateMachine.state)")
-        print("State Machine version: \(stateMachine.version)")
+		print("State: \(stateMachine.state)")
+		print("State Machine version: \(stateMachine.version)")
         
-    }
+	}
 
-    override func didReceiveMemoryWarning() {
-        super.didReceiveMemoryWarning()
-        // Dispose of any resources that can be recreated.
-    }
+	override func didReceiveMemoryWarning() {
+		super.didReceiveMemoryWarning()
+		// Dispose of any resources that can be recreated.
+	}
 
-    // MARK: StateDelegate
+	// MARK: StateDelegate
     
-    func shouldTransitionFrom(from:StateType, to:StateType) -> Bool {
-        return true
-    }
+	func shouldTransitionFrom(from:StateType, to:StateType) -> Bool {
+		return true
+	}
     
-    func didTransitionFrom(from:StateType, to:StateType) {
+	func didTransitionFrom(from:StateType, to:StateType) {
         
-    }
+	}
     
-    func failedTransitionFrom(from:StateType, to:StateType) {
+	func failedTransitionFrom(from:StateType, to:StateType) {
         
-    }
+	}
 }
 
 */
