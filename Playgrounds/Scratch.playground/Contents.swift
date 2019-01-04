@@ -4,25 +4,25 @@ import UIKit
 
 func extractValue(scanner: NSScanner) -> (String?, String?) {
     
-    var field: NSString?
-    scanner.scanUpToString(":", intoString: &field)
-    scanner.scanString(":", intoString: nil)
+	var field: NSString?
+	scanner.scanUpToString(":", intoString: &field)
+	scanner.scanString(":", intoString: nil)
     
-    var value: NSString?
-    scanner.scanUpToString("\n", intoString: &value)
+	var value: NSString?
+	scanner.scanUpToString("\n", intoString: &value)
     
-    return (field?.stringByTrimmingCharactersInSet(NSCharacterSet.whitespaceAndNewlineCharacterSet()), value?.stringByTrimmingCharactersInSet(NSCharacterSet.whitespaceAndNewlineCharacterSet()))
+	return (field?.stringByTrimmingCharactersInSet(NSCharacterSet.whitespaceAndNewlineCharacterSet()), value?.stringByTrimmingCharactersInSet(NSCharacterSet.whitespaceAndNewlineCharacterSet()))
 }
 
 func extractValue(forField field: String, scanner: NSScanner) -> String? {
     
-    scanner.scanUpToString(field, intoString: nil)
-    scanner.scanString(field, intoString: nil)
+	scanner.scanUpToString(field, intoString: nil)
+	scanner.scanString(field, intoString: nil)
     
-    var value: NSString?
-    scanner.scanUpToString("\n", intoString: &value)
+	var value: NSString?
+	scanner.scanUpToString("\n", intoString: &value)
     
-    return value as? String
+	return value as? String
 }
 
 var str = "id: 88e92600-e220-11e5-8f19-6b8864780aab\n\rdata: I'm busy"
@@ -30,25 +30,25 @@ var str2 = "id: 8ab35eb0-e220-11e5-8f19-6b8864780aab\n\revent: user-connected\n\
 
 for event in [str, str2] {
     
-    let scanner = NSScanner(string: event as String)
-    scanner.charactersToBeSkipped = NSCharacterSet.whitespaceCharacterSet()
+	let scanner = NSScanner(string: event as String)
+	scanner.charactersToBeSkipped = NSCharacterSet.whitespaceCharacterSet()
     
     
 //    let identifier = extractValue(forField: "id:", scanner: scanner)
 //    let event = extractValue(forField: "event:", scanner: scanner)
 //    let data = extractValue(forField: "data:", scanner: scanner)
 
-    var entity: (String?, String?)
+	var entity: (String?, String?)
     
-    repeat {
+	repeat {
         
-        entity = extractValue(scanner)
+		entity = extractValue(scanner)
         
-        if entity.1 != nil {
-            print("\(entity.0!):\t\(entity.1!)")
-        }
+		if entity.1 != nil {
+			print("\(entity.0!):\t\(entity.1!)")
+		}
         
-    } while(entity.0 != nil && entity.1 != nil)
+	} while(entity.0 != nil && entity.1 != nil)
     
     
 //    let identifier = extractValue(scanner)
@@ -67,5 +67,5 @@ for event in [str, str2] {
 //        print("DATA:\t\(data.1!)")
 //    }
     
-    print("---------------------------------------------------------------")
+	print("---------------------------------------------------------------")
 }

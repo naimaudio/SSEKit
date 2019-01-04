@@ -11,36 +11,36 @@ import Foundation
 // TODO: Split out into multiple files
 
 public enum ReadyState: Int {
-    case connecting = 0
-    case open = 1
-    case closed = 2
+	case connecting = 0
+	case open = 1
+	case closed = 2
 }
 
 public enum EventSourceError: Error {
     
-    case badEvent
-    case sourceConnectionTimeout
-    case sourceNotFound(Int?) //HTTP Status code
-    case unknown
+	case badEvent
+	case sourceConnectionTimeout
+	case sourceNotFound(Int?) //HTTP Status code
+	case unknown
 }
 
 open class EventSource: NSObject {
 	
 	internal var queue:DispatchQueue
 	
-    open var name: String? {
-        return self.configuration.name
-    }
+	open var name: String? {
+		return self.configuration.name
+	}
     
-    open var readyState: ReadyState = .closed
-    open var configuration: EventSourceConfiguration
-    weak open var delegate: EventSourceDelegate?
+	open var readyState: ReadyState = .closed
+	open var configuration: EventSourceConfiguration
+	weak open var delegate: EventSourceDelegate?
     
-    public required init(configuration: EventSourceConfiguration, delegate: EventSourceDelegate, queue:DispatchQueue) {
-        self.queue = queue
-        self.configuration = configuration //copy
-        self.delegate = delegate
-    }
+	public required init(configuration: EventSourceConfiguration, delegate: EventSourceDelegate, queue:DispatchQueue) {
+		self.queue = queue
+		self.configuration = configuration //copy
+		self.delegate = delegate
+	}
 	
 	deinit {
 		
@@ -57,33 +57,33 @@ open class EventSource: NSObject {
 
 public struct Event: CustomDebugStringConvertible {
     
-    struct Metadata {
+	struct Metadata {
         
-        let timestamp: Date
-        let hostUri: String
-    }
+		let timestamp: Date
+		let hostUri: String
+	}
     
-    let metadata: Metadata
-    let configuration: EventSourceConfiguration
+	let metadata: Metadata
+	let configuration: EventSourceConfiguration
     
-    let identifier: String?
-    let event: String?
-    let data: Data?
+	let identifier: String?
+	let event: String?
+	let data: Data?
 	let jsonData: Dictionary<String, AnyObject>?
     
-    init?(withEventSource eventSource: EventSource, identifier: String?, event: String?, data: Data?) {
+	init?(withEventSource eventSource: EventSource, identifier: String?, event: String?, data: Data?) {
         
-        guard identifier != nil else {
+		guard identifier != nil else {
             
-            return nil
-        }
+			return nil
+		}
         
-        configuration = eventSource.configuration
-        self.metadata = Metadata(timestamp: Date(), hostUri: configuration.uri)
+		configuration = eventSource.configuration
+		self.metadata = Metadata(timestamp: Date(), hostUri: configuration.uri)
         
-        self.identifier = identifier
-        self.event = event
-        self.data = data
+		self.identifier = identifier
+		self.event = event
+		self.data = data
 		if (data != nil) {
 			let jsonData = try? JSONSerialization.jsonObject(with: data!, options:[])
 			self.jsonData = jsonData as? Dictionary<String, AnyObject>
@@ -91,39 +91,39 @@ public struct Event: CustomDebugStringConvertible {
 		else {
 			self.jsonData = nil;
 		}
-    }
+	}
     
-    public var debugDescription: String {
+	public var debugDescription: String {
         
-        return "Event {\(self.identifier != nil ? self.identifier! : "nil"), \(self.event != nil ? self.event! : "nil"), Data length: \(self.data != nil ? self.data!.count : 0)}"
-    }
+		return "Event {\(self.identifier != nil ? self.identifier! : "nil"), \(self.event != nil ? self.event! : "nil"), Data length: \(self.data != nil ? self.data!.count : 0)}"
+	}
 }
 
 @objc
 public final class PrimaryEventSource: EventSource {
     
-    fileprivate var task: URLSessionDataTask?
-    fileprivate var children = Set<ChildEventSource>()
-    fileprivate var retries = 0
-    fileprivate let maxRetries = 3
+	fileprivate var task: URLSessionDataTask?
+	fileprivate var children = Set<ChildEventSource>()
+	fileprivate var retries = 0
+	fileprivate let maxRetries = 3
 	var session:URLSession?
     
-    internal func add(child: ChildEventSource) {
+	internal func add(child: ChildEventSource) {
 		
-        _ = self.queue.async {
-            self.children.insert(child)
-        }
-    }
+		_ = self.queue.async {
+			self.children.insert(child)
+		}
+	}
     
-    internal func remove(child: ChildEventSource) {
+	internal func remove(child: ChildEventSource) {
         
-        _ = self.queue.async {
-            self.children.remove(child)
-        }
-    }
+		_ = self.queue.async {
+			self.children.remove(child)
+		}
+	}
     
-    public override func connect() {
-        _ = self.queue.async {
+	public override func connect() {
+		_ = self.queue.async {
 			self.readyState = .connecting
 			
 			let sessionConfig = URLSessionConfiguration.default
@@ -157,7 +157,7 @@ public final class PrimaryEventSource: EventSource {
 				//error
 			}
 		}
-    }
+	}
     
 	public override func disconnect(allowRetry:Bool = true, completion:@escaping ()->() = {}) {
 		_ = self.queue.async {
@@ -195,49 +195,49 @@ public final class PrimaryEventSource: EventSource {
 
 extension PrimaryEventSource: URLSessionDataDelegate {
     
-    public func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+	public func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         
-        disconnect()
-    }
+		disconnect()
+	}
     
-    public func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+	public func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         
-        guard self.readyState != .closed else {
+		guard self.readyState != .closed else {
             
-            //Discard any data from here on in
-            return
-        }
+			//Discard any data from here on in
+			return
+		}
         
-        guard let response = dataTask.response as? HTTPURLResponse else {
+		guard let response = dataTask.response as? HTTPURLResponse else {
             
-            return //not connected yet
-        }
+			return //not connected yet
+		}
         
-        if self.readyState == .connecting {
+		if self.readyState == .connecting {
             
-            switch response.statusCode {
+			switch response.statusCode {
                 
-            case 200...299:
-                fallthrough
-            case 300...399:
-                self.delegate?.eventSourceDidConnect(self)
-                self.readyState = .open
-                self.retries = 0
-                break
+			case 200...299:
+				fallthrough
+			case 300...399:
+				self.delegate?.eventSourceDidConnect(self)
+				self.readyState = .open
+				self.retries = 0
+				break
                 
-            case 400...499:
-                fallthrough
-            default:
-                self.delegate?.eventSource(self, didEncounterError: .sourceNotFound(response.statusCode))
-                disconnect()
-                return
-            }
-        }
+			case 400...499:
+				fallthrough
+			default:
+				self.delegate?.eventSource(self, didEncounterError: .sourceNotFound(response.statusCode))
+				disconnect()
+				return
+			}
+		}
         
-        inline_URLSession(session, dataTask: dataTask, didReceiveData: data)
-    }
+		inline_URLSession(session, dataTask: dataTask, didReceiveData: data)
+	}
     
-    public func inline_URLSession(_ session: Foundation.URLSession, dataTask: URLSessionDataTask, didReceiveData data: Data) {
+	public func inline_URLSession(_ session: Foundation.URLSession, dataTask: URLSessionDataTask, didReceiveData data: Data) {
 		
 		func scan(_ scanner: Scanner, field:String) -> (String?) {
 			
@@ -281,136 +281,136 @@ extension PrimaryEventSource: URLSessionDataDelegate {
 				scanner.scanLocation = loc // reset, as this is optional...
 				
 				// is this actually optional?
-//				guard eventName !=  nil else { // finished
-//					NSLog("SSEKit SSE - No event name!")
-//					return
-//				}
+//              guard eventName !=  nil else { // finished
+//                  NSLog("SSEKit SSE - No event name!")
+//                  return
+//              }
 				
-				eventData = scan(scanner, field:"data")
+                eventData = scan(scanner, field:"data")
 				
-				guard eventData != nil else { // finished
-					NSLog("SSEKit SSE - No event data!")
-					return
-				}
+                guard eventData != nil else { // finished
+                    NSLog("SSEKit SSE - No event data!")
+                    return
+                }
 				
 				
 				
-				// Send all events to children
-				for child in self.children {
-					self.queue.async {
+                // Send all events to children
+                for child in self.children {
+                    self.queue.async {
 						
-						if let event = Event(withEventSource: child, identifier: eventId, event: eventName, data: eventData?.data(using: String.Encoding.utf8)) {
-							child.eventSource(self, didReceiveEvent: event)
-						}
-					}
-				}
+                        if let event = Event(withEventSource: child, identifier: eventId, event: eventName, data: eventData?.data(using: String.Encoding.utf8)) {
+                            child.eventSource(self, didReceiveEvent: event)
+                        }
+                    }
+                }
 				
-				// Don't create events if nobody is listerning
-				if let evnArray = self.configuration.events, let evn = eventName, evnArray.contains(evn) {
+                // Don't create events if nobody is listerning
+                if let evnArray = self.configuration.events, let evn = eventName, evnArray.contains(evn) {
 					
-					self.queue.async {
+                    self.queue.async {
 						
-						if let event = Event(withEventSource: self, identifier: eventId, event: evn, data: eventData?.data(using: String.Encoding.utf8)) {
-							self.delegate?.eventSource(self, didReceiveEvent: event)
-						}
-					}
-				}
-				else if self.configuration.events == nil {
+                        if let event = Event(withEventSource: self, identifier: eventId, event: evn, data: eventData?.data(using: String.Encoding.utf8)) {
+                            self.delegate?.eventSource(self, didReceiveEvent: event)
+                        }
+                    }
+                }
+                else if self.configuration.events == nil {
 					
-					self.queue.async {
+                    self.queue.async {
 						
-						if let event = Event(withEventSource: self, identifier: eventId, event: eventName, data: eventData?.data(using: String.Encoding.utf8)) {
-							self.delegate?.eventSource(self, didReceiveEvent: event)
-						}
-					}
-				}
+                        if let event = Event(withEventSource: self, identifier: eventId, event: eventName, data: eventData?.data(using: String.Encoding.utf8)) {
+                            self.delegate?.eventSource(self, didReceiveEvent: event)
+                        }
+                    }
+                }
 				
-			} while(!scanner.isAtEnd)
-		}
-    }
+            } while(!scanner.isAtEnd)
+        }
+	}
 }
 
 @objc
 public final class ChildEventSource: EventSource {
     
-    weak public var primaryEventSource: PrimaryEventSource?
+	weak public var primaryEventSource: PrimaryEventSource?
 	public required init(configuration: EventSourceConfiguration, delegate: EventSourceDelegate, queue:DispatchQueue) {
 		
 		super.init(configuration: configuration, delegate: delegate, queue:queue)
-    }
+	}
     
-    internal convenience init(withConfiguration config: EventSourceConfiguration, primaryEventSource: PrimaryEventSource, delegate: EventSourceDelegate, queue:DispatchQueue) {
-        self.init(configuration: config, delegate: delegate, queue:queue)
-        self.primaryEventSource = primaryEventSource
-    }
+	internal convenience init(withConfiguration config: EventSourceConfiguration, primaryEventSource: PrimaryEventSource, delegate: EventSourceDelegate, queue:DispatchQueue) {
+		self.init(configuration: config, delegate: delegate, queue:queue)
+		self.primaryEventSource = primaryEventSource
+	}
 	
 	public required init(configuration: EventSourceConfiguration, delegate: EventSourceDelegate) {
 		fatalError("init(configuration:delegate:) has not been implemented")
 	}
 	
-    public override func connect() {
+	public override func connect() {
         
-        // TODO: Return an error if there is a probelm with `primaryEventSource`
+		// TODO: Return an error if there is a probelm with `primaryEventSource`
         
-        //print("CHILD CONNECTED")
-        self.primaryEventSource?.add(child: self)
-        self.delegate?.eventSourceDidConnect(self)
-    }
+		//print("CHILD CONNECTED")
+		self.primaryEventSource?.add(child: self)
+		self.delegate?.eventSourceDidConnect(self)
+	}
     
-    public override func disconnect(allowRetry:Bool = true, completion:@escaping ()->() = {}) {
+	public override func disconnect(allowRetry:Bool = true, completion:@escaping ()->() = {}) {
         
-        delegate?.eventSourceWillDisconnect(self)
-        self.readyState = .closed
-        delegate?.eventSourceDidDisconnect(self)
+		delegate?.eventSourceWillDisconnect(self)
+		self.readyState = .closed
+		delegate?.eventSourceDidDisconnect(self)
 		completion()
-    }
+	}
 }
 
 extension ChildEventSource: EventSourceDelegate {
     
-    public func eventSource(_ eventSource: EventSource, didChangeState state: ReadyState) { /* Ignore */ }
+	public func eventSource(_ eventSource: EventSource, didChangeState state: ReadyState) { /* Ignore */ }
     
-    public func eventSourceDidConnect(_ eventSource: EventSource) { /* Ignore */ }
+	public func eventSourceDidConnect(_ eventSource: EventSource) { /* Ignore */ }
     
-    public func eventSourceWillDisconnect(_ eventSource: EventSource) { /* Ignore */ }
+	public func eventSourceWillDisconnect(_ eventSource: EventSource) { /* Ignore */ }
     
-    public func eventSourceDidDisconnect(_ eventSource: EventSource) {
-        self.disconnect()
-    }
+	public func eventSourceDidDisconnect(_ eventSource: EventSource) {
+		self.disconnect()
+	}
     
-    public func eventSource(_ eventSource: EventSource, didReceiveEvent event: Event) {
+	public func eventSource(_ eventSource: EventSource, didReceiveEvent event: Event) {
     
-        if let evnArray = self.configuration.events, let evn = event.event, evnArray.contains(evn) {
+		if let evnArray = self.configuration.events, let evn = event.event, evnArray.contains(evn) {
             
-            self.queue.async {
+			self.queue.async {
                 
-                if let event = Event(withEventSource: self, identifier: event.identifier, event: event.event, data: event.data) {
-                    self.delegate?.eventSource(self, didReceiveEvent: event)
-                }
-            }
-        }
-        else if self.configuration.events == nil {
+				if let event = Event(withEventSource: self, identifier: event.identifier, event: event.event, data: event.data) {
+					self.delegate?.eventSource(self, didReceiveEvent: event)
+				}
+			}
+		}
+		else if self.configuration.events == nil {
             
-            self.queue.async {
+			self.queue.async {
                 
-                if let event = Event(withEventSource: self, identifier: event.identifier, event: event.event, data: event.data) {
-                    self.delegate?.eventSource(self, didReceiveEvent: event)
-                }
-            }
-        }
-    }
+				if let event = Event(withEventSource: self, identifier: event.identifier, event: event.event, data: event.data) {
+					self.delegate?.eventSource(self, didReceiveEvent: event)
+				}
+			}
+		}
+	}
     
-    public func eventSource(_ eventSource: EventSource, didEncounterError error: EventSourceError) { /* Ignore */ }
+	public func eventSource(_ eventSource: EventSource, didEncounterError error: EventSourceError) { /* Ignore */ }
 }
 
 public protocol EventSourceDelegate: class {
     
-    func eventSource(_ eventSource: EventSource, didChangeState state: ReadyState)
+	func eventSource(_ eventSource: EventSource, didChangeState state: ReadyState)
     
-    func eventSourceDidConnect(_ eventSource: EventSource)
-    func eventSourceWillDisconnect(_ eventSource: EventSource)
-    func eventSourceDidDisconnect(_ eventSource: EventSource)
+	func eventSourceDidConnect(_ eventSource: EventSource)
+	func eventSourceWillDisconnect(_ eventSource: EventSource)
+	func eventSourceDidDisconnect(_ eventSource: EventSource)
     
-    func eventSource(_ eventSource: EventSource, didReceiveEvent event: Event)
-    func eventSource(_ eventSource: EventSource, didEncounterError error: EventSourceError)
+	func eventSource(_ eventSource: EventSource, didReceiveEvent event: Event)
+	func eventSource(_ eventSource: EventSource, didEncounterError error: EventSourceError)
 }

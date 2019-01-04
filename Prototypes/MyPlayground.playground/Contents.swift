@@ -16,31 +16,31 @@ private let underlyingQueue: dispatch_queue_t! = dispatch_queue_create("com.naim
 
 class hold {
     
-    init(queue: dispatch_queue_t!) {
-        print("Git queue: \(queue)")
-    }
+	init(queue: dispatch_queue_t!) {
+		print("Git queue: \(queue)")
+	}
     
 }
 
 class holdNumber {
     
-    init(holdNumber: Int) {
-        print("Got number: \(holdNumber)")
-    }
+	init(holdNumber: Int) {
+		print("Got number: \(holdNumber)")
+	}
     
 }
 
 public class test {
     
-    lazy var underlyingQueue: dispatch_queue_t! = dispatch_queue_create("com.naim.DuleQueue", DISPATCH_QUEUE_SERIAL)
-    internal var number: Int = 2
+	lazy var underlyingQueue: dispatch_queue_t! = dispatch_queue_create("com.naim.DuleQueue", DISPATCH_QUEUE_SERIAL)
+	internal var number: Int = 2
     
-    //let myHold = hold(queue: underlyingQueue)
-    private lazy var myNumber : holdNumber = holdNumber(holdNumber: self.number)
+	//let myHold = hold(queue: underlyingQueue)
+	private lazy var myNumber : holdNumber = holdNumber(holdNumber: self.number)
     
-    func out() {
-        print("Test: \(underlyingQueue)")
-    }
+	func out() {
+		print("Test: \(underlyingQueue)")
+	}
 }
 
 var myTest = test()

@@ -10,24 +10,24 @@ import Cocoa
 
 class ViewController: NSViewController {
 
-    @IBOutlet weak var logviewer: NSScrollView!
-    @IBOutlet weak var ipAddress: NSTextField!
+	@IBOutlet weak var logviewer: NSScrollView!
+	@IBOutlet weak var ipAddress: NSTextField!
     
-    override func viewDidLoad() {
-        super.viewDidLoad()
+	override func viewDidLoad() {
+		super.viewDidLoad()
 
-        // Do any additional setup after loading the view.
-    }
+		// Do any additional setup after loading the view.
+	}
 
-    override var representedObject: AnyObject? {
-        didSet {
-        // Update the view, if already loaded.
-        }
-    }
+	override var representedObject: AnyObject? {
+		didSet {
+		// Update the view, if already loaded.
+		}
+	}
 
-    @IBAction func onConnect(sender: NSButton) {
+	@IBAction func onConnect(sender: NSButton) {
         
-    }
+	}
     
     
 }

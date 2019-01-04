@@ -31,37 +31,37 @@ XCPSetExecutionShouldContinueIndefinitely(true)
 
 class DuleQueue {
     
-    //dispatch_queue_attr_make_with_qos_class
-    private let underlyingQueue: dispatch_queue_t! // = dispatch_queue_create("com.naim.DuleQueue", DISPATCH_QUEUE_SERIAL)
+	//dispatch_queue_attr_make_with_qos_class
+	private let underlyingQueue: dispatch_queue_t! // = dispatch_queue_create("com.naim.DuleQueue", DISPATCH_QUEUE_SERIAL)
     
-    //private let testQueue: NSOperationQueue = NSOperationQueue(
+	//private let testQueue: NSOperationQueue = NSOperationQueue(
     
-    private let firstQueue = NSOperationQueue(qualityOfService: .Utility)
+	private let firstQueue = NSOperationQueue(qualityOfService: .Utility)
     
-    private let secondQueue = NSOperationQueue(qualityOfService: .Utility)
+	private let secondQueue = NSOperationQueue(qualityOfService: .Utility)
     
-    init() {
+	init() {
         
-        let attrs = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0)
-        underlyingQueue = dispatch_queue_create("com.naim.DuleQueue", attrs)
+		let attrs = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0)
+		underlyingQueue = dispatch_queue_create("com.naim.DuleQueue", attrs)
         
-        firstQueue.underlyingQueue = underlyingQueue
-        secondQueue.underlyingQueue = underlyingQueue
-    }
+		firstQueue.underlyingQueue = underlyingQueue
+		secondQueue.underlyingQueue = underlyingQueue
+	}
     
-    func dispachOnFirstQueue(block: dispatch_block_t) {
+	func dispachOnFirstQueue(block: dispatch_block_t) {
     
-        let operation = NSBlockOperation(block: block)
+		let operation = NSBlockOperation(block: block)
         
-        firstQueue.addOperations([operation], waitUntilFinished: true)
-    }
+		firstQueue.addOperations([operation], waitUntilFinished: true)
+	}
     
-    func dispachOnSecondQueue(block: dispatch_block_t) {
+	func dispachOnSecondQueue(block: dispatch_block_t) {
         
-        let operation = NSBlockOperation(block: block)
+		let operation = NSBlockOperation(block: block)
         
-        secondQueue.addOperations([operation], waitUntilFinished: true)
-    }
+		secondQueue.addOperations([operation], waitUntilFinished: true)
+	}
 }
 
 let queue = DuleQueue()
@@ -71,19 +71,19 @@ var data = [Int]()
 
 for i in 0..<10 {
     
-    queue.dispachOnFirstQueue {
-        data.append(1)
-        sleep(3)
-    }
+	queue.dispachOnFirstQueue {
+		data.append(1)
+		sleep(3)
+	}
     
-    queue.dispachOnSecondQueue {
-        data.append(8)
-        sleep(1)
-    }
+	queue.dispachOnSecondQueue {
+		data.append(8)
+		sleep(1)
+	}
 }
 
 queue.dispachOnSecondQueue {
-    print(" --> \(data)")
+	print(" --> \(data)")
 }
 
 //for i in 0..<10 {
