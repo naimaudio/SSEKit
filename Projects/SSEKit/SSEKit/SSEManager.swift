@@ -11,7 +11,7 @@ import Foundation
 // MARK: Notifications
 public extension SSEManager {
     
-	public enum Notification: String {
+	enum Notification: String {
         
 		case Connected
 		case Event
