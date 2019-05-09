@@ -3,7 +3,7 @@
 //  SSEKit
 //
 //  Created by Richard Stelling on 23/02/2016.
-//  Copyright © 2016 Richard Stelling All rights reserved.
+//  Copyright © 2016 Naim Audio All rights reserved.
 //
 
 import Foundation
@@ -31,189 +31,356 @@ public extension SSEManager {
 }
 
 // MARK: - SSEManager
-open class SSEManager {
-	private static var instanceCount = 0  // debug!
+open class SSEManager : NSObject, URLSessionDelegate  {
 	
-	fileprivate var primaryEventSource: PrimaryEventSource?  // TODO: remove - 1 connection per manager - adds too much complexity (and certainly the cause of a few bugs - as order of add/remove source matters)
+	public typealias CompletionClosure = (_ error: NSError?) -> ();
+	
+	public enum ConnectionState: Int {
+		case idle = 0
+		case connecting = 1
+		case connected = 2
+		case disconnecting = 3
+	}
+	
+	public internal(set) var connectionState:ConnectionState = .idle
+	
+	internal var session:URLSession? = nil
+	internal var sessionTask: URLSessionDataTask? = nil
+	internal var connectionURL: URL? = nil
+	
+	private static var instanceCount = 0  // debug!
 	fileprivate var eventSources = Set<EventSource>()
 	
-	fileprivate var queue =  DispatchQueue(label: "com.naim.ssekit")
+	internal var queue =  DispatchQueue(label: "com.naim.ssekit")
+	internal var connectionRetries = 0
+	public var maxConnectionRetries = 3
+	
+	fileprivate var shouldDisconnectOnLastSource = false // TODO: just used for old EventSourceConfiguration usage
+	
+	private var connectCompletionClosure: CompletionClosure? = nil
     
-	public init(sources: [EventSourceConfiguration]) {
-        
-		for config in sources {
-			_ = addEventSource(config)
-		}
+	public override init() {
 		SSEManager.instanceCount = SSEManager.instanceCount + 1
 		NSLog("SSEManager init - instances \(SSEManager.instanceCount)")
 	}
 	
+	@available(*, deprecated, message: "EventSourceConfiguration to be removed")
+	public convenience init(sources: [EventSourceConfiguration]) {
+		self.init()
+		for eventSourceConfig in sources {
+			_ = self.addEventSource(eventSourceConfig)
+		}
+	}
+	
 	deinit {
-		self.primaryEventSource = nil
 		SSEManager.instanceCount = SSEManager.instanceCount - 1
 		NSLog("SSEManager dealloc - deinit \(SSEManager.instanceCount)")
 	}
+	
+	/// connect to the given SSE endpoint
+	///
+	/// - Parameter url: url of the product probably http://<productip>:15081/notify
+	func connect(toURL url: URL, completion: CompletionClosure? = nil ) {
+		_ = self.queue.async {
+			
+			guard self.connectionState == .idle else {
+				completion?(NSError(domain:"com.naim.ssekit", code:1, userInfo:[NSLocalizedDescriptionKey: "Already connected/connecting"]))
+				return
+			}
+			
+			self.connectCompletionClosure = completion
+			
+			self.connectionState = .connecting
+			
+			let sessionConfig = URLSessionConfiguration.default
+			sessionConfig.requestCachePolicy = .reloadIgnoringLocalCacheData
+			sessionConfig.timeoutIntervalForRequest = TimeInterval(5) // configuration
+			sessionConfig.timeoutIntervalForResource = TimeInterval(INT_MAX)
+			sessionConfig.httpAdditionalHeaders = ["Accept" : "text/event-stream", "Cache-Control" : "no-cache"]
+			
+			if self.session != nil {
+				self.session!.invalidateAndCancel()
+			}
+			
+			let session = Foundation.URLSession(configuration: sessionConfig, delegate: self, delegateQueue: nil) //This requires self be marked as @objc
+			
+			self.session = session
+			
+			self.connectionURL = url
+			self.sessionTask = session.dataTask(with: url)
+			
+			self.sessionTask?.resume()
+			
+		}
+	}
+	
+	/// disconnect the SSE connection socket
+	///
+	/// - Parameter completion: completion closure
+	public func disconnect(completion:@escaping ()->() = {}) {
+		
+		_ = self.queue.async {
+			guard self.connectionState != .disconnecting && self.connectionState != .idle else {
+				completion()
+				return
+			}
+			
+			self.connectionState = .disconnecting
+			self.session?.invalidateAndCancel()
+			self.session = nil
+			
+			guard let t = self.sessionTask, t.state != .canceling else {
+				completion()
+				return
+			}
+			
+			self.sessionTask?.cancel()
+			self.sessionTask = nil
+			self.connectionState = .idle
+			
+			DispatchQueue.main.sync {
+				self.eventSources.forEach({ (eventSource) in
+					NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Disconnected.rawValue), object: eventSource, userInfo: [ Notification.Key.Source.rawValue : self.connectionURL!.absoluteString ])
+				})
+			}
+			
+			NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Disconnected.rawValue), object: self, userInfo: [ Notification.Key.Source.rawValue : self.connectionURL!.absoluteString ])
+			
+			completion()
+		}
+	}
     
-	/**
-	 Add an EventSource to the manager.
-	 */
+	
+	/// create a new event source given the config.
+	///
+	/// - Parameter eventSourceConfig: a populated EventSourceConfig instance
+	/// - Returns: the new EventSource instance
+	@available(*, deprecated, message: "EventSourceConfiguration to be removed, use connect and the addEventSource that takes strings")
 	open func addEventSource(_ eventSourceConfig: EventSourceConfiguration) -> EventSource {
-        
+		
+		self.queue.async {
+			if (self.connectionState == .idle) {
+				self.shouldDisconnectOnLastSource = true
+				self.connect(toURL: URL(string: eventSourceConfig.uri)!)
+			}
+		}
+		return self.addEventSource(forEvents: eventSourceConfig.events ?? [])
+	}
+	
+	/// create a new event source that listens to the provided events
+	///
+	/// - Parameter events: array of event name strings, if empty array [] listen to everything
+	/// - Returns: the EventSource instance
+	open func addEventSource(forEvents events:[String]) -> EventSource {
 		var eventSource: EventSource!
 		
-		_ = self.queue.sync { // must be sync, need to check there is a primary source
-			
-			if self.primaryEventSource == nil {
-				eventSource = PrimaryEventSource(configuration: eventSourceConfig, delegate: self, queue: self.queue)
-				self.primaryEventSource = eventSource as? PrimaryEventSource
-				precondition(self.eventSources.count == 0, "primary event source created AFTER other sources...bugs will arise...")
-			}
-			else {
-				eventSource = ChildEventSource(withConfiguration: eventSourceConfig, primaryEventSource: self.primaryEventSource!, delegate: self, queue:self.queue)
-			}
-		}
+		eventSource = EventSource(withManager: self, events: events)
 		
-		precondition(eventSource != nil, "Cannot be nil.")
-        
 		_ = self.queue.async {
+			
+			precondition(eventSource != nil, "Cannot be nil.")
+			
 			self.eventSources.insert(eventSource)
+			
 		}
 		
-		
-		eventSource?.connect()
-        
 		return eventSource
 	}
 	
-	public func reconnect() {
+	
+	/// remove the event source from listening to events
+	///
+	/// - Parameter eventSource: the EventSource instance to remove
+	/// - Parameter completion: completion closure
+	open func removeEventSource(_ eventSource: EventSource, _ completion:@escaping ()->() = {}) {
+	
 		self.queue.async {
-			if (self.eventSources.count > 0 && self.primaryEventSource?.readyState != .open && self.primaryEventSource?.readyState != .connecting) {
-				precondition(self.primaryEventSource != nil, "no primary event source!Dump other event sources: \(self.eventSources)")
-				
-				self.primaryEventSource?.connect()
-				for eventSource in self.eventSources {
-					if (eventSource != self.primaryEventSource) {
-						eventSource.connect()
+		
+			self.eventSources.remove(eventSource)
+			
+			if self.shouldDisconnectOnLastSource && self.eventSources.count == 0 {
+				self.disconnect() {
+					DispatchQueue.main.async {
+						completion()
 					}
 				}
 			}
-			
-		}
-	}
-	
-	/**
-	 Disconnect and remove EventSource from manager.
-	 */
-	open func removeEventSource(_ eventSource: EventSource, _ completion:@escaping ()->() = {}) {
-		        
-		eventSource.disconnect(allowRetry: false, completion: {
-	
-			self.queue.async {
-			
-				if (eventSource == self.primaryEventSource) {
-					NSLog("destroy primary event source")
-					self.primaryEventSource = nil
-					
-				}
-				
-				self.eventSources.remove(eventSource)
-				
+			else {
 				DispatchQueue.main.async {
 					completion()
 				}
 			}
-		})
+			
+		}
 	}
 	
+	/// remove all the listening event sources
+	///
+	/// - Parameter completion: completion closure
 	open func removeAllEventSources(_ completion:@escaping ()->()) {
 		
 		self.queue.async {
 			
-			var count = self.eventSources.count
-			guard count != 0 else {
+			self.eventSources.removeAll()
+			
+			if self.shouldDisconnectOnLastSource {
+				self.disconnect() {
+					DispatchQueue.main.async {
+						completion()
+					}
+				}
+			}
+			else {
 				DispatchQueue.main.async {
 					completion()
-				}
-				return
-			}
-			
-			for eventSource in self.eventSources {
-				eventSource.disconnect(allowRetry: false) {
-					count = count - 1
-					if count == 0 {
-						self.primaryEventSource = nil
-						self.eventSources.removeAll()
-						DispatchQueue.main.async {
-							completion()
-						}
-					}
 				}
 			}
 		}
 	}
 }
 
-// MARK: - EventSourceDelegate
-extension SSEManager: EventSourceDelegate {
+
+// MARK: - URLSessionDataDelegate
+extension SSEManager: URLSessionDataDelegate {
 	
-	public func eventSource(_ eventSource: EventSource, didChangeState state: ReadyState) {
-        
-		//TODO: Logging
-		print("State -> \(eventSource) -> \(state)")
-	}
-    
-	public func eventSourceDidConnect(_ eventSource: EventSource) {
-		DispatchQueue.main.async {
-			NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Connected.rawValue), object: eventSource, userInfo: [ Notification.Key.Source.rawValue : eventSource.configuration.uri ])
+	public func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+		self.queue.async {
+			if let url = self.connectionURL, session == self.session {
+				guard self.connectionState != .disconnecting else {
+					self.connectionState = .idle
+					return
+				}
+			
+				self.connectionState = .idle
+				// session ended...
+				self.connectionRetries = self.connectionRetries + 1
+				if (self.connectionRetries < self.maxConnectionRetries) {
+					self.connect(toURL: url)
+				}
+				else {
+					self.disconnect() {
+					}
+				}
+			}
 		}
 	}
-    
-	public func eventSourceWillDisconnect(_ eventSource: EventSource) {}
-    
-	public func eventSourceDidDisconnect(_ eventSource: EventSource) {
-        
-		//Remove disconnected EventSource objects from the array
-//        self.queue.async {
-            //TODO
-//            if let esIndex = self.eventSources.indexOf(eventSource) {
-//                self.eventSources.removeAtIndex(esIndex)
-//            }
-//        }
-        DispatchQueue.main.async {
-            NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Disconnected.rawValue), object: eventSource, userInfo: [ Notification.Key.Source.rawValue : eventSource.configuration.uri ])
-        }
-	}
-    
-	public func eventSource(_ eventSource: EventSource, didReceiveEvent event: Event) {
-        
-		//print("[ES#: \(eventSources.count)] \(eventSource) -> \(event)")
-        
-		var userInfo: [String: AnyObject] = [Notification.Key.Source.rawValue : eventSource.configuration.uri as AnyObject, Notification.Key.Timestamp.rawValue : event.metadata.timestamp as AnyObject]
-        
-		if let identifier = event.identifier {
-			userInfo[Notification.Key.Identifier.rawValue] = identifier as AnyObject
-		}
-        
-		if let name = event.event {
-			userInfo[Notification.Key.Name.rawValue] = name as AnyObject
-		}
-        
-		if let data = event.data {
-			userInfo[Notification.Key.Data.rawValue] = data as AnyObject
+	
+	public func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+		
+		guard self.connectionState != .idle,
+			self.connectionState != .disconnecting,
+			session == self.session else {
+			
+			//Discard any data from here on in
+			return
 		}
 		
-		if let jsonData = event.jsonData {
-			userInfo[Notification.Key.JSONData.rawValue] = jsonData as AnyObject
+		guard let response = dataTask.response as? HTTPURLResponse else {
+			
+			return //not connected yet
 		}
 		
-		DispatchQueue.main.async {
-			NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Event.rawValue), object: eventSource, userInfo: userInfo)
+		self.queue.async {
+		
+			if self.connectionState == .connecting {
+				
+				NSLog("\(response)")
+				switch response.statusCode {
+					
+				case 200...299:
+					fallthrough
+				case 300...399:
+					self.connectionState = .connected
+					self.connectionRetries = 0
+					DispatchQueue.main.sync {
+						self.eventSources.forEach({ (eventSource) in
+							NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Connected.rawValue), object: eventSource, userInfo: [ Notification.Key.Source.rawValue : self.connectionURL!.absoluteString ])
+						})
+						self.connectCompletionClosure?(nil)
+						self.connectCompletionClosure = nil
+						NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Connected.rawValue), object: self, userInfo: [ Notification.Key.Source.rawValue : self.connectionURL!.absoluteString ])
+					}
+					break
+					
+				case 400...499:
+					fallthrough
+				default:
+					self.disconnect {
+					}
+					return
+				}
+			}
+			
+			self.parseEventData(data)
 		}
 	}
-    
-	public func eventSource(_ eventSource: EventSource, didEncounterError error: EventSourceError) {
-        
-		//TODO: Send error notification
-		//print("Error -> \(eventSource) -> \(error)")
+	
+	/// parse the event data, create Event instances, and tell all EventSources about them
+	///
+	/// - Parameter data: the event data received
+	///
+	/// TODO - this should be fileprivate - just enabling for test, put back when mocked URLSession properly
+	internal func parseEventData(_ data: Data) {
+		
+		func scan(_ scanner: Scanner, field:String) -> (String?) {
+			
+			let originalLocation = scanner.scanLocation
+			
+			scanner.scanUpTo("\(field):", into: nil)
+			
+			guard scanner.scanString("\(field):", into:nil) else { // not found, reset and return nil
+				scanner.scanLocation = originalLocation
+				return nil
+			}
+			
+			var value: NSString?
+			scanner.scanUpTo("\n", into: &value)
+			
+			// get rid of any newlines
+			scanner.scanCharacters(from: CharacterSet.whitespacesAndNewlines, into: nil)
+			
+			return value as String?;
+		}
+		
+		if let eventString = String(data: data, encoding: .utf8) { //NSString(bytes: data.withUnsafeBytes length: data.count, encoding: 4) {
+			
+			
+			let scanner = Scanner(string: eventString as String)
+			scanner.charactersToBeSkipped = CharacterSet.whitespaces
+			
+			repeat {
+				
+				var eventId: String?, eventName: String?, eventData: String?
+				
+				eventId = scan(scanner, field:"id")
+				
+				guard eventId !=  nil else { // finished
+					NSLog("SSEKit SSE - No id!")
+					return
+				}
+				
+				let loc = scanner.scanLocation
+				eventName = scan(scanner, field:"event")
+				scanner.scanLocation = loc // reset, as this is optional...
+			
+				eventData = scan(scanner, field:"data")
+				
+				guard eventData != nil else { // finished
+					NSLog("SSEKit SSE - No event data!")
+					return
+				}
+				
+				// Send events to all event sources
+				for eventSource in self.eventSources {
+					self.queue.async {
+						
+						if let event = Event(withEventSource: eventSource, identifier: eventId, event: eventName ?? "", data: eventData?.data(using: String.Encoding.utf8)) {
+							eventSource.handleEvent(event)
+						}
+					}
+				}
+				
+			} while(!scanner.isAtEnd)
+		}
 	}
 }

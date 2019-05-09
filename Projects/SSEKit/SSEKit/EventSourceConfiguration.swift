@@ -3,10 +3,13 @@
 //  SSEKit
 //
 //  Created by Richard Stelling on 23/02/2016.
-//  Copyright © 2016 Richard Stelling All rights reserved.
+//  Copyright © 2016 Naim Audio All rights reserved.
 //
 
 import Foundation
+
+// TODO: delete this file!
+// leaving in for now in case we want to patch 5.13
 
 public struct EventSourceConfiguration {
     
@@ -21,7 +24,7 @@ public struct EventSourceConfiguration {
 	internal let events: [String]?
     
 	internal var uri: String {
-		return "\(self.hostAddress):\(self.port)\(self.endpoint)"
+		return "http:\(self.hostAddress):\(self.port)\(self.endpoint)"
 	}
     
 	//options?
