@@ -80,7 +80,7 @@ open class SSEManager : NSObject, URLSessionDelegate  {
 	/// connect to the given SSE endpoint
 	///
 	/// - Parameter url: url of the product probably http://<productip>:15081/notify
-	func connect(toURL url: URL, completion: CompletionClosure? = nil ) {
+	open func connect(toURL url: URL, completion: CompletionClosure? = nil ) {
 		_ = self.queue.async {
 			
 			guard self.connectionState == .idle else {
@@ -117,9 +117,9 @@ open class SSEManager : NSObject, URLSessionDelegate  {
 	/// disconnect the SSE connection socket
 	///
 	/// - Parameter completion: completion closure
-	public func disconnect(completion:@escaping ()->() = {}) {
+	open func disconnect(completion:@escaping ()->() = {}) {
 		
-		_ = self.queue.async {
+		self.queue.async {
 			guard self.connectionState != .disconnecting && self.connectionState != .idle else {
 				completion()
 				return
@@ -142,9 +142,9 @@ open class SSEManager : NSObject, URLSessionDelegate  {
 				self.eventSources.forEach({ (eventSource) in
 					NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Disconnected.rawValue), object: eventSource, userInfo: [ Notification.Key.Source.rawValue : self.connectionURL!.absoluteString ])
 				})
+				
+				NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Disconnected.rawValue), object: self, userInfo: [ Notification.Key.Source.rawValue : self.connectionURL!.absoluteString ])
 			}
-			
-			NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Disconnected.rawValue), object: self, userInfo: [ Notification.Key.Source.rawValue : self.connectionURL!.absoluteString ])
 			
 			completion()
 		}
@@ -217,7 +217,7 @@ open class SSEManager : NSObject, URLSessionDelegate  {
 	/// remove all the listening event sources
 	///
 	/// - Parameter completion: completion closure
-	open func removeAllEventSources(_ completion:@escaping ()->()) {
+	open func removeAllEventSources(_ completion:@escaping ()->() = {}) {
 		
 		self.queue.async {
 			
@@ -251,13 +251,17 @@ extension SSEManager: URLSessionDataDelegate {
 					return
 				}
 			
-				self.connectionState = .idle
 				// session ended...
 				self.connectionRetries = self.connectionRetries + 1
 				if (self.connectionRetries < self.maxConnectionRetries) {
-					self.connect(toURL: url)
+					self.connectionState = .idle
+					self.connect(toURL: url, completion: self.connectCompletionClosure)
 				}
 				else {
+					DispatchQueue.main.sync {
+						self.connectCompletionClosure?(error as NSError?)
+						self.connectCompletionClosure = nil
+					}
 					self.disconnect() {
 					}
 				}
