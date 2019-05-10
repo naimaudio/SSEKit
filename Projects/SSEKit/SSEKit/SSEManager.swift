@@ -217,7 +217,7 @@ open class SSEManager : NSObject, URLSessionDelegate  {
 	/// remove all the listening event sources
 	///
 	/// - Parameter completion: completion closure
-	open func removeAllEventSources(_ completion:@escaping ()->()) {
+	open func removeAllEventSources(_ completion:@escaping ()->() = {}) {
 		
 		self.queue.async {
 			
