@@ -119,7 +119,7 @@ open class SSEManager : NSObject, URLSessionDelegate  {
 	/// - Parameter completion: completion closure
 	open func disconnect(completion:@escaping ()->() = {}) {
 		
-		_ = self.queue.async {
+		self.queue.async {
 			guard self.connectionState != .disconnecting && self.connectionState != .idle else {
 				completion()
 				return
@@ -142,9 +142,9 @@ open class SSEManager : NSObject, URLSessionDelegate  {
 				self.eventSources.forEach({ (eventSource) in
 					NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Disconnected.rawValue), object: eventSource, userInfo: [ Notification.Key.Source.rawValue : self.connectionURL!.absoluteString ])
 				})
+				
+				NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Disconnected.rawValue), object: self, userInfo: [ Notification.Key.Source.rawValue : self.connectionURL!.absoluteString ])
 			}
-			
-			NotificationCenter.default.post(name: Foundation.Notification.Name(rawValue: Notification.Disconnected.rawValue), object: self, userInfo: [ Notification.Key.Source.rawValue : self.connectionURL!.absoluteString ])
 			
 			completion()
 		}
@@ -251,13 +251,17 @@ extension SSEManager: URLSessionDataDelegate {
 					return
 				}
 			
-				self.connectionState = .idle
 				// session ended...
 				self.connectionRetries = self.connectionRetries + 1
 				if (self.connectionRetries < self.maxConnectionRetries) {
-					self.connect(toURL: url)
+					self.connectionState = .idle
+					self.connect(toURL: url, completion: self.connectCompletionClosure)
 				}
 				else {
+					DispatchQueue.main.sync {
+						self.connectCompletionClosure?(error as NSError?)
+						self.connectCompletionClosure = nil
+					}
 					self.disconnect() {
 					}
 				}
