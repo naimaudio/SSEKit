@@ -80,7 +80,7 @@ open class SSEManager : NSObject, URLSessionDelegate  {
 	/// connect to the given SSE endpoint
 	///
 	/// - Parameter url: url of the product probably http://<productip>:15081/notify
-	func connect(toURL url: URL, completion: CompletionClosure? = nil ) {
+	open func connect(toURL url: URL, completion: CompletionClosure? = nil ) {
 		_ = self.queue.async {
 			
 			guard self.connectionState == .idle else {
@@ -117,7 +117,7 @@ open class SSEManager : NSObject, URLSessionDelegate  {
 	/// disconnect the SSE connection socket
 	///
 	/// - Parameter completion: completion closure
-	public func disconnect(completion:@escaping ()->() = {}) {
+	open func disconnect(completion:@escaping ()->() = {}) {
 		
 		_ = self.queue.async {
 			guard self.connectionState != .disconnecting && self.connectionState != .idle else {
