@@ -61,7 +61,7 @@ open class SSEManager : NSObject, URLSessionDelegate  {
     
 	public override init() {
 		SSEManager.instanceCount = SSEManager.instanceCount + 1
-		NSLog("SSEManager init - instances \(SSEManager.instanceCount)")
+//		NSLog("SSEManager init - instances \(SSEManager.instanceCount)")
 	}
 	
 	@available(*, deprecated, message: "EventSourceConfiguration to be removed")
@@ -74,7 +74,7 @@ open class SSEManager : NSObject, URLSessionDelegate  {
 	
 	deinit {
 		SSEManager.instanceCount = SSEManager.instanceCount - 1
-		NSLog("SSEManager dealloc - deinit \(SSEManager.instanceCount)")
+//		NSLog("SSEManager dealloc - deinit \(SSEManager.instanceCount)")
 	}
 	
 	/// connect to the given SSE endpoint
@@ -288,7 +288,7 @@ extension SSEManager: URLSessionDataDelegate {
 		
 			if self.connectionState == .connecting {
 				
-				NSLog("\(response)")
+//				NSLog("\(response)")
 				switch response.statusCode {
 					
 				case 200...299:
