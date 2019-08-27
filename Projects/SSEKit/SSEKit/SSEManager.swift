@@ -54,6 +54,7 @@ open class SSEManager : NSObject, URLSessionDelegate  {
 	internal var queue =  DispatchQueue(label: "com.naim.ssekit")
 	internal var connectionRetries = 0
 	public var maxConnectionRetries = 3
+	public var logEvents: Set<String>? = nil // log all events on empty set, no events on nil
 	
 	fileprivate var shouldDisconnectOnLastSource = false // TODO: just used for old EventSourceConfiguration usage
 	
@@ -372,6 +373,12 @@ extension SSEManager: URLSessionDataDelegate {
 				guard eventData != nil else { // finished
 					NSLog("SSEKit SSE - No event data!")
 					return
+				}
+				
+				// SSE EVENT LOGGING
+				// On if empty set, or specific event matches name
+				if let logEvents = self.logEvents, logEvents.count == 0 || (eventName != nil && logEvents.contains(eventName!)) {
+					NSLog("🔵 SSE EVENT:\(self.connectionURL!.host!) \(eventName ?? "nil") - \(eventData!)")
 				}
 				
 				// Send events to all event sources
