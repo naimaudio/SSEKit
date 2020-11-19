@@ -82,7 +82,7 @@ open class SSEManager : NSObject, URLSessionDelegate  {
 	///
 	/// - Parameter url: url of the product probably http://<productip>:15081/notify
 	open func connect(toURL url: URL, completion: CompletionClosure? = nil ) {
-		_ = self.queue.async {
+		self.queue.async {
 			
 			guard self.connectionState == .idle else {
 				completion?(NSError(domain:"com.naim.ssekit", code:1, userInfo:[NSLocalizedDescriptionKey: "Already connected/connecting"]))
@@ -177,7 +177,7 @@ open class SSEManager : NSObject, URLSessionDelegate  {
 		
 		eventSource = EventSource(withManager: self, events: events)
 		
-		_ = self.queue.async {
+		self.queue.async {
 			
 			precondition(eventSource != nil, "Cannot be nil.")
 			
