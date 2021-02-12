@@ -42,7 +42,7 @@ open class SSEManager : NSObject, URLSessionDelegate  {
 		case disconnecting = 3
 	}
 	
-	public internal(set) var connectionState:ConnectionState = .idle
+	public internal(set) var connectionState:ConnectionState = ConnectionState.idle
 	
 	internal var session:URLSession? = nil
 	internal var sessionTask: URLSessionDataTask? = nil
@@ -129,11 +129,6 @@ open class SSEManager : NSObject, URLSessionDelegate  {
 			self.connectionState = .disconnecting
 			self.session?.invalidateAndCancel()
 			self.session = nil
-			
-			guard let t = self.sessionTask, t.state != .canceling else {
-				completion()
-				return
-			}
 			
 			self.sessionTask?.cancel()
 			self.sessionTask = nil
