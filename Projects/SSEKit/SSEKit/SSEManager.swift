@@ -42,17 +42,7 @@ open class SSEManager : NSObject, URLSessionDelegate  {
 		case disconnecting = 3
 	}
 	
-	// TODO: remove
-	public var _connectionState = ConnectionState.idle
-	public internal(set) var connectionState:ConnectionState {
-		get {
-			return _connectionState
-		}
-		set {
-			NSLog("\(self) SSEKit state \(_connectionState.rawValue) -> \(newValue.rawValue)")
-			_connectionState = newValue
-		}
-	}
+	public internal(set) var connectionState:ConnectionState = ConnectionState.idle
 	
 	internal var session:URLSession? = nil
 	internal var sessionTask: URLSessionDataTask? = nil
